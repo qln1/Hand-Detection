@@ -1,16 +1,16 @@
-// 
-// 
-// 
-// Author: Quintin Nguyen, 
+// Author: Quintin Nguyen, Akhil Lal
 
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/features2d.hpp>
+#include "opencv2/features2d.hpp" // Used for feature matching
+#include "opencv2/xfeatures2d.hpp" // Used for feature matching
 #include <iostream>
 #include <cmath>
 #include <opencv2/core/types.hpp>
 #include <vector>
+#include <stdlib.h> // rand
 using namespace cv;
 using namespace std;
 
@@ -27,16 +27,6 @@ struct Hand {
 	Point location;
 	int type;
 };
-
-
-
-
-
-
-
-
-
-
 
 // FixComputedRow
 // Precondition: Parameter is passed in correctly
@@ -66,10 +56,25 @@ int FixComputedCol(Mat search, int col) {
 	return col;
 }
 
+// FixComputedColor
+// Precondition: Parameter is passed in correctly
+// Postcondition: Will return num as an int and makes sure that
+//                num will not be greater than 255 or less than 0.
+int FixComputedColor(double num) {
+	num = trunc(num);
+	if (num > 255) {
+		num = 255;
+	}
+	else if (num < 0) {
+		num = 0;
+	}
+	return int(num);
+}
+
 // IsPointAnEdge
 // Precondition: Parameter is passed in correctly. search is a edge image
 // Postcondition: Will tell if the point (directly overlapping or off by
-//                one pixel, including diagonally) is or is not an edge 
+//                one pixel, including diagonally) is or is not an edge
 bool IsPointAnEdge(Mat search, int current_row, int current_col) {
 	int row_pos = FixComputedRow(search, current_row + 1);
 	int row_neg = FixComputedRow(search, current_row - 1);
@@ -92,8 +97,8 @@ bool IsPointAnEdge(Mat search, int current_row, int current_col) {
 }
 
 //// HowSimilarImagesAre
-//// Precondition: 
-//// Postcondition: Returns a 
+//// Precondition:
+//// Postcondition: Returns a
 //float HowSimilarImagesAre(Mat search, Mat temp) {
 //	float end_sum = 0;
 //	float white_spot = 0;
@@ -109,7 +114,6 @@ bool IsPointAnEdge(Mat search, int current_row, int current_col) {
 //	}
 //	return ((end_sum / white_spot) * 100);
 //}
-
 
 float HowSimilarImagesAre(Mat search, Mat temp) {
 	//Ptr<Feature2D> f2d = SIFT::create();
@@ -131,35 +135,6 @@ float HowSimilarImagesAre(Mat search, Mat temp) {
 	//matchTemplate(search, temp, output, TM_CCOEFF);
 	//imshow("aaaaaaaaaa", output);
 	return 1.0;
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// FixComputedColor
-// Precondition: Parameter is passed in correctly
-// Postcondition: Will return num as an int and makes sure that
-//                num will not be greater than 255 or less than 0.
-int FixComputedColor(double num) {
-	num = trunc(num);
-	if (num > 255) {
-		num = 255;
-	}
-	else if (num < 0) {
-		num = 0;
-	}
-	return int(num);
 }
 
 // ModifyContrast
@@ -203,10 +178,6 @@ Mat ModifyContrast(Mat pic) {
 	return pic;
 }
 
-
-
-
-
 // SearchForTemplate
 // Precondition: search.jpg and temp.jpg exists in the code directory
 //               and is a valid JPG.
@@ -235,17 +206,6 @@ Mat BackgroundRemover(Mat front, Mat back) {
 	return output;
 }
 
-
-
-
-
-
-
-
-
-
-
-
 //int getMaxAreaContourId(vector <vector<cv::Point>> contours) {
 //    double maxArea = 0;
 //    int maxAreaContourId = -1;
@@ -270,20 +230,13 @@ int FindBiggestContour(vector <vector<Point>> contours, Rect& bounding_rect) {
 		if (current_area >= biggest_area) {
 			biggest_area = current_area;
 			biggest_contour = i;
-			
+
 		}
 		i++;
 	}
 	bounding_rect = boundingRect(contours[biggest_contour]);
 	return biggest_contour;
 }
-
-
-
-
-
-
-
 
 Mat MovementDirectionShape(int direction, bool hand_detected) {
 	Mat shape;
@@ -311,9 +264,6 @@ Mat MovementDirectionShape(int direction, bool hand_detected) {
 	return shape;
 }
 
-
-
-
 //void CreateRectangle(Mat frame) {
 //	int x = 0;
 //	int y = 0;
@@ -332,17 +282,8 @@ Mat MovementDirectionShape(int direction, bool hand_detected) {
 //	cv::rectangle(frame, pt1, pt2, cv::Scalar(0, 255, 0));
 //}
 
-
-
-
-
-
-
-
-
-
 //Given a coordinate, it will put the text on the frame
-//No hands means 
+//No hands means
 		//hand_pos = -1, -1
 		//h_type == 8
 void PrintHandLocation(Mat frame, bool hand_detected, Point hand_pos, int h_type) {
@@ -350,10 +291,8 @@ void PrintHandLocation(Mat frame, bool hand_detected, Point hand_pos, int h_type
 	putText(frame, hand_location, Point{ 3, frame.rows - 6 }, 1, 1.5, text_color, 2);
 }
 
-
-
 //Given a coordinate, it will put the text on the frame
-//No hands means 
+//No hands means
 		//hand_pos = -1, -1
 		//h_type == 8
 void PrintHandType(Mat frame, bool hand_detected, Point hand_pos, int h_type) {
@@ -376,7 +315,7 @@ void PrintHandType(Mat frame, bool hand_detected, Point hand_pos, int h_type) {
 	}
 	else if (h_type == 4) {
 		type = "4 Fingers Up";
-	} 
+	}
 	else if (h_type == 5) {
 		type = "5 Fingers Up";
 	}
@@ -391,16 +330,11 @@ void PrintHandType(Mat frame, bool hand_detected, Point hand_pos, int h_type) {
 	putText(frame, hand_type, Point{ 3, frame.rows - 12 }, 1, 1.5, text_color, 2);
 }
 
-
-
-
 void PrepareImages(Mat& image) {
 	GaussianBlur(image, image, Size(gaus_blur, gaus_blur), 0);
 	medianBlur(image, image, median_blur);
 	image = ModifyContrast(image);
 }
-
-
 
 Mat ObtainFrontObject(Mat& object, Rect& bounding_rect) {
 	Mat thresh;
@@ -414,7 +348,7 @@ Mat ObtainFrontObject(Mat& object, Rect& bounding_rect) {
 
 	Mat object_copy = object.clone();
 
-	
+
 	drawContours(object, contours, FindBiggestContour(contours, bounding_rect), Scalar(0, 255, 0), 2);
 
 	rectangle(object_copy, bounding_rect, Scalar(0, 255, 0), 2);
@@ -423,8 +357,6 @@ Mat ObtainFrontObject(Mat& object, Rect& bounding_rect) {
 
 	return object(bounding_rect);
 }
-
-
 
 Mat ObjectCropper(Mat& object) {
 	float height = object.size().height;
@@ -443,9 +375,6 @@ Mat ObjectCropper(Mat& object) {
 	}
 	return object;
 }
-
-
-
 
 int TemplateMatchingWithObject(Mat object) {
 	//Possible detect left vs right here first???
@@ -471,25 +400,80 @@ int TemplateMatchingWithObject(Mat object) {
 	}
 }
 
+// Determines whether the given number is in the given array
+// preconditions; arr and num are correctly allocated and are the appropriate types
+// postconditions: return true if arr contains num, false if not
+bool arrayContains(int[] arr, int num) {
+  for (int i = 0; i < sizeof(arr)/sizeof(arr[0]); i++) { // Might have to use vector if index out of bounds err
+    if (arr[i] == num) {
+      return true;
+    }
+  }
+  return false;
+}
 
+// Detects and extracts the background from given video
+// preconditions: video is correctly formatted and allocated
+// postconditions: the calculated background from the video is returned as a Mat
+Mat extractBackground(VideoCapture& video) {
+  int const frame_width = cap.get(CAP_PROP_FRAME_WIDTH);
+  int const frame_height = cap.get(CAP_PROP_FRAME_HEIGHT);
+  int const number_of_frames = cap.get(CAP_PROP_FRAME_COUNT);
+  int random_frames[30]; // Might have to use vector if index out of bounds err
+  int numberOfRandomFrames = sizeof(arr)/sizeof(arr[0]);
 
+  // Determine which random frames to use for background calculation
+  for (int i = 0; i < numberOfRandomFrames; i++) {
+    int random_frame = rand() % number_of_frames;
+    while (arrayContains(random_frames, random_frame)) {
+      random_frame = rand() % number_of_frames;
+    }
+    random_frames[i] = random_frame;
+  }
 
+  Mat extractedBackground(frame_height, frame_width, CV_32S, Scalar::all(0)); // Check params
+
+  Mat frame;
+  int frameNumber = 0;
+
+  // Go through each random frame and add its values to each pixel in extracted background
+  for (;;) {
+    cap >> frame;
+    if (frame.empty()) {
+      cerr << "ERROR! blank frame grabbed\n";
+      break;
+    }
+    if (arrayContains(random_frames, frameNumber)) {
+      for (int row = 0; row < frame_height; row++) {
+        for (int col = 0; col < frame_width; col++) {
+          extractedBackground.at<Vec3b>(row, col)[2] += frame.at<Vec3b>(row, col)[2];
+          extractedBackground.at<Vec3b>(row, col)[1] += frame.at<Vec3b>(row, col)[1];
+          extractedBackground.at<Vec3b>(row, col)[0] += frame.at<Vec3b>(row, col)[0];
+        }
+      }
+    }
+    frameNumber++;
+  }
+
+  // Average every pixel in background to get final background from video
+  for (int row = 0; row < frame_height; row++) {
+    for (int col = 0; col < frame_width; col++) {
+      extractedBackground.at<Vec3b>(row, col)[2] = FixComputedColor(extractedBackground.at<Vec3b>(row, col)[2] / numberOfRandomFrames);
+      extractedBackground.at<Vec3b>(row, col)[1] = FixComputedColor(extractedBackground.at<Vec3b>(row, col)[2] / numberOfRandomFrames);
+      extractedBackground.at<Vec3b>(row, col)[0] = FixComputedColor(extractedBackground.at<Vec3b>(row, col)[2] / numberOfRandomFrames);
+    }
+  }
+  return extractedBackground;
+}
 
 //// Main Method
-//// Precondition: 
-//// Postcondition: 
+//// Precondition:
+//// Postcondition:
 //int main(int argc, char* argv[]) {
 //	//First determine what type of arrow/shape.   Display arrow/shape
 //	//Mat arrow = CreateArrow(0, true);
 //	//arrow.copyTo(background(Rect(10, 10, arrow.cols, arrow.rows)));
 //
-//
-//
-//
-//
-//
-//
-// 
 //	VideoCapture cap(path);
 //	if (!cap.isOpened()) return -1;
 //
@@ -502,18 +486,9 @@ int TemplateMatchingWithObject(Mat object) {
 //	int const frame_height = cap.get(CAP_PROP_FRAME_HEIGHT);
 //	VideoWriter output_vid("output.avi", VideoWriter::fourcc('M', 'J', 'P', 'G'), 30, Size(frame_width, frame_height));
 //
-//
-//
-//
-//
 //	while (true) {
 //		cap >> frame;				// Reads in image frame
 //		if (!frame.data) break;	// if there's no more frames then break
-//
-//
-//
-//
-//
 //
 //		//Do STUFF WITH FRAME
 //		if (first_frame) {
@@ -530,8 +505,6 @@ int TemplateMatchingWithObject(Mat object) {
 //			//
 //		}
 //
-//
-//
 //		imshow("Video", frame);
 //		waitKey(30);
 //		output_vid.write(frame);
@@ -543,27 +516,17 @@ int TemplateMatchingWithObject(Mat object) {
 //	return 0;
 //}
 
-
-
-
-
 int main() {
 	Mat back = imread("background.jpg");
 	Mat front = imread("front.jpg");
 
 	PrepareImages(front);
 	PrepareImages(back);
-	
+
 	//imshow("ascasc", front);
 	//waitKey(0);
 
-
-
-
-
-
-	
-	//Mat hsv_front;
+  //Mat hsv_front;
 	//cvtColor(front, hsv_front, COLOR_BGR2HSV);
 	//vector<Mat> channels_front;
 	//split(front, channels_front);
@@ -575,14 +538,7 @@ int main() {
 	//split(back, channels_back);
 	//Mat V_back = channels_back[2];
 
-
-
-
-
-
-
-
-	//cvtColor(front, front, COLOR_BGR2GRAY);
+  //cvtColor(front, front, COLOR_BGR2GRAY);
 	//Canny(V_front, V_front, 20, 60);
 	//Canny(V_back, V_back, 20, 60);
 
@@ -592,16 +548,10 @@ int main() {
 	//imshow("ascasc", V_back);
 	//waitKey(0);
 
-
-
-
-
-
-	Mat object = BackgroundRemover(front, back);
+  Mat object = BackgroundRemover(front, back);
 	imshow("2222", object);
 	waitKey(0);
-	
-	
+
 	Rect bounding_rect;
 	Mat only_object = ObtainFrontObject(object, bounding_rect);
 	imshow("None approximation", only_object);
@@ -612,10 +562,7 @@ int main() {
 	imshow("None approximation", only_object);
 	waitKey(0);
 
-
-
 	//only_object = imread("2.jpg");
-
 
 	int type = TemplateMatchingWithObject(only_object);
 	cout << type << endl;
