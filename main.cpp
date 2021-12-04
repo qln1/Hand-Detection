@@ -4,8 +4,6 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/features2d.hpp>
-#include "opencv2/features2d.hpp" // Used for feature matching
-#include "opencv2/xfeatures2d.hpp" // Used for feature matching
 #include <iostream>
 #include <cmath>
 #include <opencv2/core/types.hpp>
@@ -195,7 +193,7 @@ Mat BackgroundRemover(Mat front, Mat back) {
 			int back_color_r = back.at<Vec3b>(row, col)[2];
 			if (abs(front_color_b - back_color_b) < background_remover_thresh &&
 				abs(front_color_g - back_color_g) < background_remover_thresh &&
-				abs(front_color_r - back_color_r) < background_remover_thresh ) {	//Very similar
+				abs(front_color_r - back_color_r) < background_remover_thresh) {	//Very similar
 				output.at<uchar>(row, col) = 0;
 			}
 			else {	//Not similar at all	Hand detected
@@ -225,7 +223,7 @@ int FindBiggestContour(vector <vector<Point>> contours, Rect& bounding_rect) {
 	double biggest_area = -1;
 	int biggest_contour = -1;
 	int i = 0;
-	while(i < contours.size()) {
+	while (i < contours.size()) {
 		double current_area = contourArea(contours.at(i));
 		if (current_area >= biggest_area) {
 			biggest_area = current_area;
@@ -255,7 +253,7 @@ Mat MovementDirectionShape(int direction, bool hand_detected) {
 			else if (direction == 3) {	//Left
 				rotate(shape, shape, ROTATE_180);
 			}
-			else { }	//Right
+			else {}	//Right
 		}
 	}
 	else {
@@ -403,67 +401,82 @@ int TemplateMatchingWithObject(Mat object) {
 // Determines whether the given number is in the given array
 // preconditions; arr and num are correctly allocated and are the appropriate types
 // postconditions: return true if arr contains num, false if not
-bool arrayContains(int[] arr, int num) {
-  for (int i = 0; i < sizeof(arr)/sizeof(arr[0]); i++) { // Might have to use vector if index out of bounds err
-    if (arr[i] == num) {
-      return true;
-    }
-  }
-  return false;
+bool vectorContains(vector<int> vec, int num) {
+	for (int i = 0; i < vec.size(); i++) {
+		if (vec[i] == num) {
+			return true;
+		}
+	}
+	return false;
 }
 
 // Detects and extracts the background from given video
 // preconditions: video is correctly formatted and allocated
 // postconditions: the calculated background from the video is returned as a Mat
 Mat extractBackground(VideoCapture& video) {
-  int const frame_width = cap.get(CAP_PROP_FRAME_WIDTH);
-  int const frame_height = cap.get(CAP_PROP_FRAME_HEIGHT);
-  int const number_of_frames = cap.get(CAP_PROP_FRAME_COUNT);
-  int random_frames[30]; // Might have to use vector if index out of bounds err
-  int numberOfRandomFrames = sizeof(arr)/sizeof(arr[0]);
+	int const frame_width = video.get(CAP_PROP_FRAME_WIDTH);
+	int const frame_height = video.get(CAP_PROP_FRAME_HEIGHT);
+	int const number_of_frames = video.get(CAP_PROP_FRAME_COUNT);
+	vector<int> random_frames;
+	int numberOfRandomFrames = 30;
 
-  // Determine which random frames to use for background calculation
-  for (int i = 0; i < numberOfRandomFrames; i++) {
-    int random_frame = rand() % number_of_frames;
-    while (arrayContains(random_frames, random_frame)) {
-      random_frame = rand() % number_of_frames;
-    }
-    random_frames[i] = random_frame;
-  }
+	// Determine which random frames to use for background calculation
+	for (int i = 0; i < numberOfRandomFrames; i++) {
+		int random_frame = rand() % number_of_frames;
+		while (vectorContains(random_frames, random_frame)) {
+			random_frame = rand() % number_of_frames;
+		}
+		random_frames.push_back(random_frame);
+	}
 
-  Mat extractedBackground(frame_height, frame_width, CV_32S, Scalar::all(0)); // Check params
+	Mat extractedBackground(frame_height, frame_width, CV_8UC3, Scalar::all(0));
+	Mat frame;
+	int curFrame = 0;
+	bool firstRandomFrame = true;
+	vector<vector<vector<int>>> backgroundPixels(frame_height);
 
-  Mat frame;
-  int frameNumber = 0;
+	// Go through each random frame and add its values to each pixel in extracted background
+	for (;;) {
+		video >> frame;
+		if (frame.empty()) {
+			cerr << "ERROR! blank frame grabbed\n";
+			break;
+		}
+		if (vectorContains(random_frames, curFrame)) {
+			for (int row = 0; row < frame_height; row++) {
+				if (firstRandomFrame) {
+					vector<vector<int>> temp(frame_width);
+					backgroundPixels.at(row) = temp;
+				}
+				for (int col = 0; col < frame_width; col++) {
+					if (firstRandomFrame) {
+						vector<int> colorValues(3);
+						backgroundPixels.at(row).at(col) = colorValues;
+						backgroundPixels.at(row).at(col).at(2) = frame.at<Vec3b>(row, col)[2];
+						backgroundPixels.at(row).at(col).at(1) = frame.at<Vec3b>(row, col)[1];
+						backgroundPixels.at(row).at(col).at(0) = frame.at<Vec3b>(row, col)[0];
+					}
+					else {
+						backgroundPixels.at(row).at(col).at(2) += frame.at<Vec3b>(row, col)[2];
+						backgroundPixels.at(row).at(col).at(1) += frame.at<Vec3b>(row, col)[1];
+						backgroundPixels.at(row).at(col).at(0) += frame.at<Vec3b>(row, col)[0];
+					}
+				}
+			}
+			firstRandomFrame = false;
+		}
+		curFrame++;
+	}
 
-  // Go through each random frame and add its values to each pixel in extracted background
-  for (;;) {
-    cap >> frame;
-    if (frame.empty()) {
-      cerr << "ERROR! blank frame grabbed\n";
-      break;
-    }
-    if (arrayContains(random_frames, frameNumber)) {
-      for (int row = 0; row < frame_height; row++) {
-        for (int col = 0; col < frame_width; col++) {
-          extractedBackground.at<Vec3b>(row, col)[2] += frame.at<Vec3b>(row, col)[2];
-          extractedBackground.at<Vec3b>(row, col)[1] += frame.at<Vec3b>(row, col)[1];
-          extractedBackground.at<Vec3b>(row, col)[0] += frame.at<Vec3b>(row, col)[0];
-        }
-      }
-    }
-    frameNumber++;
-  }
-
-  // Average every pixel in background to get final background from video
-  for (int row = 0; row < frame_height; row++) {
-    for (int col = 0; col < frame_width; col++) {
-      extractedBackground.at<Vec3b>(row, col)[2] = FixComputedColor(extractedBackground.at<Vec3b>(row, col)[2] / numberOfRandomFrames);
-      extractedBackground.at<Vec3b>(row, col)[1] = FixComputedColor(extractedBackground.at<Vec3b>(row, col)[2] / numberOfRandomFrames);
-      extractedBackground.at<Vec3b>(row, col)[0] = FixComputedColor(extractedBackground.at<Vec3b>(row, col)[2] / numberOfRandomFrames);
-    }
-  }
-  return extractedBackground;
+	// Average every pixel in background to get final background from video
+	for (int row = 0; row < frame_height; row++) {
+		for (int col = 0; col < frame_width; col++) {
+			extractedBackground.at<Vec3b>(row, col)[2] = FixComputedColor(backgroundPixels.at(row).at(col).at(2) / numberOfRandomFrames);
+			extractedBackground.at<Vec3b>(row, col)[1] = FixComputedColor(backgroundPixels.at(row).at(col).at(1) / numberOfRandomFrames);
+			extractedBackground.at<Vec3b>(row, col)[0] = FixComputedColor(backgroundPixels.at(row).at(col).at(0) / numberOfRandomFrames);
+		}
+	}
+	return extractedBackground;
 }
 
 //// Main Method
@@ -516,6 +529,7 @@ Mat extractBackground(VideoCapture& video) {
 //	return 0;
 //}
 
+/*
 int main() {
 	Mat back = imread("background.jpg");
 	Mat front = imread("front.jpg");
@@ -548,7 +562,7 @@ int main() {
 	//imshow("ascasc", V_back);
 	//waitKey(0);
 
-  Mat object = BackgroundRemover(front, back);
+	Mat object = BackgroundRemover(front, back);
 	imshow("2222", object);
 	waitKey(0);
 
@@ -577,4 +591,14 @@ int main() {
 		//Set previous hand to nothing
 	}
 
+}
+
+*/
+
+// Main just to test extractBackground()
+int main() {
+	VideoCapture cap;
+	cap.open("india.mp4");
+	Mat background = extractBackground(cap);
+	imwrite("background.jpg", background);
 }
