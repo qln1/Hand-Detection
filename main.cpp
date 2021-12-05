@@ -425,7 +425,8 @@ int TemplateMatchingWithObject(Mat object) {
 // Detects and extracts the background from given video
 // preconditions: video is correctly formatted and allocated
 // postconditions: the calculated background from the video is returned as a Mat
-Mat ExtractBackground(VideoCapture& video) {
+Mat extractBackground(const VideoCapture& cap) {
+	VideoCapture video = cap;
 	int const frame_width = (int)video.get(CAP_PROP_FRAME_WIDTH);
 	int const frame_height = (int)video.get(CAP_PROP_FRAME_HEIGHT);
 	int const number_of_frames = (int)video.get(CAP_PROP_FRAME_COUNT);
