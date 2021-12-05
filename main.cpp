@@ -18,7 +18,7 @@ double const contrast_num = 1.5;
 int const gaus_blur = 21;
 int const background_remover_thresh = 30;
 int const median_blur = 15;
-int const num_template_files = 8;
+int const num_template_files = 6;
 int const similarity_threshold = 75;
 
 struct Hand {
@@ -113,7 +113,7 @@ bool IsPointAnEdge(Mat search, int current_row, int current_col) {
 //	return ((end_sum / white_spot) * 100);
 //}
 
-float HowSimilarImagesAre(Mat search, Mat temp) {
+float HowSimilarImagesAre(Mat hand, Mat background) {
 	//Ptr<Feature2D> f2d = SIFT::create();
 	//vector<KeyPoint> keypoints_template;
 	//vector<KeyPoint> keypoints_search;
@@ -132,6 +132,34 @@ float HowSimilarImagesAre(Mat search, Mat temp) {
 	////cv::drawKeypoints(temp, keypoints_template, output);
 	//matchTemplate(search, temp, output, TM_CCOEFF);
 	//imshow("aaaaaaaaaa", output);
+	
+	int minHessian = 400;
+	Ptr<SIFT> detector = SIFT::create(minHessian);
+	vector<KeyPoint> keypoints_template, keypoints_background;
+	Mat descriptor_template, descriptor_background;
+	detector->detectAndCompute(templ, noArray(), keypoints_template, descriptor_template);
+	detector->detectAndCompute(background, noArray(), keypoints_background, descriptor_background);
+	
+	Ptr<DescriptorMatcher> feature_matcher = DescriptorMatcher::create(DescriptorMatcher::FLANNBASED);
+	vector< vector<DMatch> > matches;
+	feature_matcher->knnMatch(descriptor_template, descriptor_background, matches, 2);
+	
+	const float ratio_thresh = 0.65f;
+	vector<DMatch> good_matches;
+	for (size_t i = 0; i < matches.size(); i++)
+	{
+		if (matches[i][0].distance < ratio_thresh * matches[i][1].distance)
+		{
+			good_matches.push_back(matches[i][0]);
+		}
+	}
+	
+	Mat drawn_matches;
+	drawMatches(templ, keypoints_template, background, keypoints_background, good_matches, img_matches, Scalar::all(-1),
+		Scalar::all(-1), vector<char>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
+	imshow("Good Matches", drawn_matches);
+	waitKey();
+	
 	return 1.0;
 }
 
@@ -381,9 +409,9 @@ int TemplateMatchingWithObject(Mat object) {
 	int highest_similar_value = -1;
 
 	for (int i = 0; i < num_template_files; i++) {
-		string file_name = "Templates\\" + to_string(i) + ".jpg";
+		string file_name = to_string(i) + ".jpg";
 		Mat templ = imread(file_name);
-		int current_simi = HowSimilarImagesAre(object, templ);
+		int current_simi = HowSimilarImagesAre(templ, object);
 		cout << i << " " << current_simi << endl;
 		if (current_simi > highest_similar_value) {
 			highest_similar_value = current_simi;
@@ -578,7 +606,7 @@ int main() {
 
 	//only_object = imread("2.jpg");
 
-	int type = TemplateMatchingWithObject(only_object);
+	int type = TemplateMatchingWithObject(object); //changed this from only_object to object
 	cout << type << endl;
 	Hand hand;
 	if (type != -1) {
