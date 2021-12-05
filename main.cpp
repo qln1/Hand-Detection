@@ -1,4 +1,4 @@
-// Author: Quintin Nguyen, Akhil Lal
+// Author: Quintin Nguyen, Akhil Lal, Matthew Cho
 
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
@@ -8,9 +8,15 @@
 #include <cmath>
 #include <opencv2/core/types.hpp>
 #include <vector>
-#include <stdlib.h> // rand
+#include <stdlib.h>
 using namespace cv;
 using namespace std;
+
+#define STAYING_STILL 0;
+#define MOVE_DOWN 1;
+#define MOVE_UP 2;
+#define MOVE_LEFT 3;
+#define MOVE_RIGHT 4;
 
 Scalar const text_color = { 255, 0 ,0 };
 string const path = "hand.mp4";
@@ -19,11 +25,15 @@ int const gaus_blur = 21;
 int const background_remover_thresh = 30;
 int const median_blur = 15;
 int const num_template_files = 6;
-int const similarity_threshold = 75;
+int const similarity_threshold = 13;
+int const movement_threshold = 10;
+int const min_hessian = 400;
+float const ratio_thresh = 0.5;
+int const number_random_frames = 15;
 
 struct Hand {
-	Point location;
-	int type;
+	Point location = Point(-1, -1);
+	int type = -1;
 };
 
 // FixComputedRow
@@ -94,73 +104,32 @@ bool IsPointAnEdge(Mat search, int current_row, int current_col) {
 	return false;
 }
 
-//// HowSimilarImagesAre
-//// Precondition:
-//// Postcondition: Returns a
-//float HowSimilarImagesAre(Mat search, Mat temp) {
-//	float end_sum = 0;
-//	float white_spot = 0;
-//	for (int t_row = 0; t_row < temp.rows; t_row++) {
-//		for (int t_col = 0; t_col < temp.cols; t_col++) {
-//			if (temp.at<uchar>(t_row, t_col) != 0) {
-//				white_spot++;
-//				if (IsPointAnEdge(search, t_row, t_col)) {
-//					end_sum++;
-//				}
-//			}
-//		}
-//	}
-//	return ((end_sum / white_spot) * 100);
-//}
+int HowSimilarImagesAre(Mat search, Mat templ) { 
+	Ptr<SIFT> detector = SIFT::create(min_hessian);
+	vector<KeyPoint> keypoints_template, keypoints_search;
+	Mat descriptor_template, descriptor_search;
+	detector->detectAndCompute(templ, noArray(), keypoints_template, descriptor_template);
+	detector->detectAndCompute(search, noArray(), keypoints_search, descriptor_search);
 
-float HowSimilarImagesAre(Mat hand, Mat background) {
-	//Ptr<Feature2D> f2d = SIFT::create();
-	//vector<KeyPoint> keypoints_template;
-	//vector<KeyPoint> keypoints_search;
-	//f2d->detect(temp, keypoints_template);
-	//f2d->detect(search, keypoints_search);
-
-	//Mat descriptors_1, descriptors_2;
-	//f2d->compute(temp, keypoints_template, descriptors_1);
-	//f2d->compute(search, keypoints_search, descriptors_2);
-
-	//BFMatcher matcher;
-	//std::vector< DMatch > matches;
-	//matcher.match(descriptors_1, descriptors_2, matches);
-
-	//Mat output;
-	////cv::drawKeypoints(temp, keypoints_template, output);
-	//matchTemplate(search, temp, output, TM_CCOEFF);
-	//imshow("aaaaaaaaaa", output);
-	
-	int minHessian = 400;
-	Ptr<SIFT> detector = SIFT::create(minHessian);
-	vector<KeyPoint> keypoints_template, keypoints_background;
-	Mat descriptor_template, descriptor_background;
-	detector->detectAndCompute(hand, noArray(), keypoints_template, descriptor_template);
-	detector->detectAndCompute(background, noArray(), keypoints_background, descriptor_background);
-	
 	Ptr<DescriptorMatcher> feature_matcher = DescriptorMatcher::create(DescriptorMatcher::FLANNBASED);
 	vector< vector<DMatch> > matches;
-	feature_matcher->knnMatch(descriptor_template, descriptor_background, matches, 2);
-	
-	const float ratio_thresh = 0.65f;
+	feature_matcher->knnMatch(descriptor_template, descriptor_search, matches, 2);
+
+
 	vector<DMatch> good_matches;
-	for (size_t i = 0; i < matches.size(); i++)
-	{
-		if (matches[i][0].distance < ratio_thresh * matches[i][1].distance)
-		{
+	for (size_t i = 0; i < matches.size(); i++) {
+		if (matches[i][0].distance < ratio_thresh * matches[i][1].distance) {
 			good_matches.push_back(matches[i][0]);
 		}
 	}
-	
+
 	Mat drawn_matches;
-	drawMatches(hand, keypoints_template, background, keypoints_background, good_matches, drawn_matches, Scalar::all(-1),
+	drawMatches(templ, keypoints_template, search, keypoints_search, good_matches, drawn_matches, Scalar::all(-1),
 		Scalar::all(-1), vector<char>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
 	imshow("Good Matches", drawn_matches);
 	waitKey();
-	
-	return 1.0;
+
+	return (int)good_matches.size();
 }
 
 // ModifyContrast
@@ -264,28 +233,62 @@ int FindBiggestContour(vector <vector<Point>> contours, Rect& bounding_rect) {
 	return biggest_contour;
 }
 
-Mat MovementDirectionShape(int direction, bool hand_detected) {
-	Mat shape;
-	if (hand_detected) {
-		if (direction == 0) {
-			shape = imread("stay.jpg");
+
+int HandMovementDirection(Hand current, Hand previous) {
+	int change_in_x = current.location.x - previous.location.x;
+	int change_in_y = current.location.y - previous.location.y;
+	if (current.type == -1 || previous.type == -1) {
+		return -1;
+	}
+	if (change_in_x >= change_in_y) {
+		if (change_in_x > movement_threshold) {
+			if (change_in_x >= 0) {
+				return MOVE_RIGHT;
+			}
+			else {
+				return MOVE_LEFT;
+			}
 		}
 		else {
-			shape = imread("arrow.jpg");
-			if (direction == 1) {	//Down
-				rotate(shape, shape, ROTATE_90_CLOCKWISE);
-			}
-			else if (direction == 2) {	//Up
-				rotate(shape, shape, ROTATE_90_COUNTERCLOCKWISE);
-			}
-			else if (direction == 3) {	//Left
-				rotate(shape, shape, ROTATE_180);
-			}
-			else {}	//Right
+			return STAYING_STILL;
 		}
 	}
 	else {
+		if (change_in_y > movement_threshold) {
+			if (change_in_y >= 0) {
+				return MOVE_DOWN;
+			}
+			else {
+				return MOVE_UP;
+			}
+		}
+		else {
+			return STAYING_STILL;
+		}
+	}
+}
+
+
+Mat MovementDirectionShape(int direction) {
+	Mat shape;
+	if (direction == -1) {
 		shape = imread("none.jpg");
+	}
+	else if (direction == 0) {
+		shape = imread("stay.jpg");
+	}
+	else {
+		shape = imread("arrow.jpg");
+		if (direction == 1) {	//Down
+			rotate(shape, shape, ROTATE_90_CLOCKWISE);
+		}
+		else if (direction == 2) {	//Up
+			rotate(shape, shape, ROTATE_90_COUNTERCLOCKWISE);
+		}
+		else if (direction == 3) {	//Left
+			rotate(shape, shape, ROTATE_180);
+		}
+		else {}	//Right
 	}
 	return shape;
 }
@@ -312,7 +315,7 @@ Mat MovementDirectionShape(int direction, bool hand_detected) {
 //No hands means
 		//hand_pos = -1, -1
 		//h_type == 8
-void PrintHandLocation(Mat frame, bool hand_detected, Point hand_pos, int h_type) {
+void PrintHandLocation(Mat frame, Point hand_pos) {
 	string hand_location = "Hand Location: (" + to_string(hand_pos.x) + ", " + to_string(hand_pos.y) + ")";
 	putText(frame, hand_location, Point{ 3, frame.rows - 6 }, 1, 1.5, text_color, 2);
 }
@@ -321,14 +324,14 @@ void PrintHandLocation(Mat frame, bool hand_detected, Point hand_pos, int h_type
 //No hands means
 		//hand_pos = -1, -1
 		//h_type == 8
-void PrintHandType(Mat frame, bool hand_detected, Point hand_pos, int h_type) {
+void PrintHandType(Mat frame, int h_type) {
 	string type;
 
 	if (h_type == -1) {
 		type = "No Hand Detected";
 	}
 	else if (h_type == 0) {
-		type = "Ok Sign";
+		type = "Thumbs Up";
 	}
 	else if (h_type == 1) {
 		type = "1 Finger Up";
@@ -344,12 +347,6 @@ void PrintHandType(Mat frame, bool hand_detected, Point hand_pos, int h_type) {
 	}
 	else if (h_type == 5) {
 		type = "5 Fingers Up";
-	}
-	else if (h_type == 6) {
-		type = "Thumbs Up";
-	}
-	else if (h_type == 7) {
-		type = "Thumbs Down";
 	}
 
 	string hand_type = "Hand Type: " + type;
@@ -378,29 +375,27 @@ Mat ObtainFrontObject(Mat& object, Rect& bounding_rect) {
 	drawContours(object, contours, FindBiggestContour(contours, bounding_rect), Scalar(0, 255, 0), 2);
 
 	rectangle(object_copy, bounding_rect, Scalar(0, 255, 0), 2);
-	imshow("none 522222222222222222", object);
-	waitKey(0);
 
 	return object(bounding_rect);
 }
 
-Mat ObjectCropper(Mat& object) {
-	float height = object.size().height;
-	float width = object.size().width;
-	if (height >= width) {
-		if (height / width < 1.8) {}
-		else {
-			object = object(Range(0, height - (height / 3)), Range(0, width));
-		}
-	}
-	else {
-		if (width / height < 1.8) {}
-		else {
-			object = object(Range(0, width), Range(0, height));
-		}
-	}
-	return object;
-}
+//Mat ObjectCropper(Mat& object) {
+//	float height = object.size().height;
+//	float width = object.size().width;
+//	if (height >= width) {
+//		if (height / width < 1.8) {}
+//		else {
+//			object = object(Range(0, height - (height / 3)), Range(0, width));
+//		}
+//	}
+//	else {
+//		if (width / height < 1.8) {}
+//		else {
+//			object = object(Range(0, width), Range(0, height));
+//		}
+//	}
+//	return object;
+//}
 
 int TemplateMatchingWithObject(Mat object) {
 	//Possible detect left vs right here first???
@@ -409,16 +404,17 @@ int TemplateMatchingWithObject(Mat object) {
 	int highest_similar_value = -1;
 
 	for (int i = 0; i < num_template_files; i++) {
-		string file_name = to_string(i) + ".jpg";
+		string file_name = "Templates\\" + to_string(i) + ".jpg";
 		Mat templ = imread(file_name);
-		int current_simi = HowSimilarImagesAre(templ, object);
+
+		int current_simi = HowSimilarImagesAre(object, templ);
 		cout << i << " " << current_simi << endl;
 		if (current_simi > highest_similar_value) {
 			highest_similar_value = current_simi;
 			most_similar_file = i;
 		}
 	}
-	if (round(highest_similar_value) >= similarity_threshold) {	//matches a template
+	if (highest_similar_value >= similarity_threshold) {	//matches a template
 		return most_similar_file;
 	}
 	else {	//fails to detect hand
@@ -426,38 +422,25 @@ int TemplateMatchingWithObject(Mat object) {
 	}
 }
 
-// Determines whether the given number is in the given array
-// preconditions; arr and num are correctly allocated and are the appropriate types
-// postconditions: return true if arr contains num, false if not
-bool vectorContains(vector<int> vec, int num) {
-	for (int i = 0; i < vec.size(); i++) {
-		if (vec[i] == num) {
-			return true;
-		}
-	}
-	return false;
-}
-
 // Detects and extracts the background from given video
 // preconditions: video is correctly formatted and allocated
 // postconditions: the calculated background from the video is returned as a Mat
-Mat extractBackground(VideoCapture& video) {
-	int const frame_width = video.get(CAP_PROP_FRAME_WIDTH);
-	int const frame_height = video.get(CAP_PROP_FRAME_HEIGHT);
-	int const number_of_frames = video.get(CAP_PROP_FRAME_COUNT);
+Mat ExtractBackground(VideoCapture& video) {
+	int const frame_width = (int)video.get(CAP_PROP_FRAME_WIDTH);
+	int const frame_height = (int)video.get(CAP_PROP_FRAME_HEIGHT);
+	int const number_of_frames = (int)video.get(CAP_PROP_FRAME_COUNT);
 	vector<int> random_frames;
-	int numberOfRandomFrames = 30;
 
 	// Determine which random frames to use for background calculation
-	for (int i = 0; i < numberOfRandomFrames; i++) {
+	for (int i = 0; i < number_random_frames; i++) {
 		int random_frame = rand() % number_of_frames;
-		while (vectorContains(random_frames, random_frame)) {
+		while (find(random_frames.begin(), random_frames.end(), random_frame) != random_frames.end()) {
 			random_frame = rand() % number_of_frames;
 		}
 		random_frames.push_back(random_frame);
 	}
 
-	Mat extractedBackground(frame_height, frame_width, CV_8UC3, Scalar::all(0));
+	Mat extracted_background(frame_height, frame_width, CV_8UC3, Scalar::all(0));
 	Mat frame;
 	int curFrame = 0;
 	bool firstRandomFrame = true;
@@ -467,10 +450,9 @@ Mat extractBackground(VideoCapture& video) {
 	for (;;) {
 		video >> frame;
 		if (frame.empty()) {
-			cerr << "ERROR! blank frame grabbed\n";
 			break;
 		}
-		if (vectorContains(random_frames, curFrame)) {
+		if (find(random_frames.begin(), random_frames.end(), curFrame) != random_frames.end()) {
 			for (int row = 0; row < frame_height; row++) {
 				if (firstRandomFrame) {
 					vector<vector<int>> temp(frame_width);
@@ -499,12 +481,12 @@ Mat extractBackground(VideoCapture& video) {
 	// Average every pixel in background to get final background from video
 	for (int row = 0; row < frame_height; row++) {
 		for (int col = 0; col < frame_width; col++) {
-			extractedBackground.at<Vec3b>(row, col)[2] = FixComputedColor(backgroundPixels.at(row).at(col).at(2) / numberOfRandomFrames);
-			extractedBackground.at<Vec3b>(row, col)[1] = FixComputedColor(backgroundPixels.at(row).at(col).at(1) / numberOfRandomFrames);
-			extractedBackground.at<Vec3b>(row, col)[0] = FixComputedColor(backgroundPixels.at(row).at(col).at(0) / numberOfRandomFrames);
+			extracted_background.at<Vec3b>(row, col)[2] = FixComputedColor(backgroundPixels.at(row).at(col).at(2) / number_random_frames);
+			extracted_background.at<Vec3b>(row, col)[1] = FixComputedColor(backgroundPixels.at(row).at(col).at(1) / number_random_frames);
+			extracted_background.at<Vec3b>(row, col)[0] = FixComputedColor(backgroundPixels.at(row).at(col).at(0) / number_random_frames);
 		}
 	}
-	return extractedBackground;
+	return extracted_background;
 }
 
 //// Main Method
@@ -557,7 +539,7 @@ Mat extractBackground(VideoCapture& video) {
 //	return 0;
 //}
 
-/*
+
 int main() {
 	Mat back = imread("background.jpg");
 	Mat front = imread("front.jpg");
@@ -596,18 +578,18 @@ int main() {
 
 	Rect bounding_rect;
 	Mat only_object = ObtainFrontObject(object, bounding_rect);
-	imshow("None approximation", only_object);
+	imshow("objjjj", object);
 	waitKey(0);
-	only_object = ObjectCropper(only_object);
-	resize(only_object, only_object, Size(300, 490), INTER_LINEAR);
+	//only_object = ObjectCropper(only_object);
+	//resize(only_object, only_object, Size(300, 490), INTER_LINEAR);
 	imwrite("t.jpg", only_object);
 	imshow("None approximation", only_object);
 	waitKey(0);
 
 	//only_object = imread("2.jpg");
 
-	int type = TemplateMatchingWithObject(object); //changed this from only_object to object
-	cout << type << endl;
+	int type = TemplateMatchingWithObject(only_object);
+	cout << "TYPEE!! " << type << endl;
 	Hand hand;
 	if (type != -1) {
 		hand.type = type;
@@ -615,18 +597,12 @@ int main() {
 		hand.location.y = bounding_rect.y;
 
 	}
-	else {
-		//Set previous hand to nothing
-	}
-
 }
 
-*/
-
-// Main just to test extractBackground()
-int main() {
-	VideoCapture cap;
-	cap.open("india.mp4");
-	Mat background = extractBackground(cap);
-	imwrite("background.jpg", background);
-}
+//// Main just to test ExtractBackground()
+//int main() {
+//	VideoCapture cap;
+//	cap.open("india.mp4");
+//	Mat background = ExtractBackground(cap);
+//	imwrite("background.jpg", background);
+//}
