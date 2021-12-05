@@ -19,50 +19,34 @@ using namespace std;
 #define MOVE_RIGHT 4;
 
 Scalar const text_color = { 255, 0 ,0 };
-string const path = "hand.mp4";
+string const video_name_path = "hand.mp4";
 double const contrast_num = 1.5;
 int const gaus_blur = 21;
 int const background_remover_thresh = 30;
 int const median_blur = 15;
-int const num_template_files = 6;
+string const template_path = "Template\\";
+int const skip_frames = 20;
+int const min_contour_area = 50;////////////////////////////
 int const similarity_threshold = 13;
 int const movement_threshold = 10;
 int const min_hessian = 400;
 float const ratio_thresh = 0.5;
-int const number_random_frames = 15;
+int const number_random_frames = 30;
 
 struct Hand {
 	Point location = Point(-1, -1);
 	int type = -1;
 };
 
-// FixComputedRow
-// Precondition: Parameter is passed in correctly
-// Postcondition: Will return num as an int and makes sure that
-//                num will not go out of bounds.
-int FixComputedRow(Mat search, int row) {
-	if (row >= search.rows) {
-		row = search.rows - 1;
-	}
-	else if (row < 0) {
-		row = 0;
-	}
-	return row;
-}
 
-// FixComputedCol
-// Precondition: Parameter is passed in correctly
-// Postcondition: Will return num as an int and makes sure that
-//                num will not go out of bounds.
-int FixComputedCol(Mat search, int col) {
-	if (col >= search.cols) {
-		col = search.cols - 1;
-	}
-	else if (col < 0) {
-		col = 0;
-	}
-	return col;
-}
+
+
+
+
+
+
+
+
 
 // FixComputedColor
 // Precondition: Parameter is passed in correctly
@@ -79,64 +63,11 @@ int FixComputedColor(double num) {
 	return int(num);
 }
 
-// IsPointAnEdge
-// Precondition: Parameter is passed in correctly. search is a edge image
-// Postcondition: Will tell if the point (directly overlapping or off by
-//                one pixel, including diagonally) is or is not an edge
-bool IsPointAnEdge(Mat search, int current_row, int current_col) {
-	int row_pos = FixComputedRow(search, current_row + 1);
-	int row_neg = FixComputedRow(search, current_row - 1);
-
-	int col_pos = FixComputedCol(search, current_col + 1);
-	int col_neg = FixComputedCol(search, current_col - 1);
-
-	if (search.at<uchar>(current_row, current_col) != 0 ||
-		search.at<uchar>(current_row, col_pos) != 0 ||
-		search.at<uchar>(current_row, col_neg) != 0 ||
-		search.at<uchar>(row_pos, current_col) != 0 ||
-		search.at<uchar>(row_neg, current_col) != 0 ||
-		search.at<uchar>(row_pos, col_pos) != 0 ||
-		search.at<uchar>(row_pos, col_neg) != 0 ||
-		search.at<uchar>(row_neg, col_pos) != 0 ||
-		search.at<uchar>(row_neg, col_neg) != 0) {
-		return true;
-	}
-	return false;
-}
-
-int HowSimilarImagesAre(Mat search, Mat templ) { 
-	Ptr<SIFT> detector = SIFT::create(min_hessian);
-	vector<KeyPoint> keypoints_template, keypoints_search;
-	Mat descriptor_template, descriptor_search;
-	detector->detectAndCompute(templ, noArray(), keypoints_template, descriptor_template);
-	detector->detectAndCompute(search, noArray(), keypoints_search, descriptor_search);
-
-	Ptr<DescriptorMatcher> feature_matcher = DescriptorMatcher::create(DescriptorMatcher::FLANNBASED);
-	vector< vector<DMatch> > matches;
-	feature_matcher->knnMatch(descriptor_template, descriptor_search, matches, 2);
-
-
-	vector<DMatch> good_matches;
-	for (size_t i = 0; i < matches.size(); i++) {
-		if (matches[i][0].distance < ratio_thresh * matches[i][1].distance) {
-			good_matches.push_back(matches[i][0]);
-		}
-	}
-
-	Mat drawn_matches;
-	drawMatches(templ, keypoints_template, search, keypoints_search, good_matches, drawn_matches, Scalar::all(-1),
-		Scalar::all(-1), vector<char>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
-	imshow("Good Matches", drawn_matches);
-	waitKey();
-
-	return (int)good_matches.size();
-}
-
 // ModifyContrast
 // Precondition: test.jpg exists in the code directory and is a valid JPG.
 // Postcondition: output.jpg will be saved to disk with all of the contrast
 //                being enhanced
-Mat ModifyContrast(Mat pic) {
+void ModifyContrast(Mat& pic) {
 	double ave_blue = 0;
 	double ave_green = 0;
 	double ave_red = 0;
@@ -169,16 +100,95 @@ Mat ModifyContrast(Mat pic) {
 			pic.at<Vec3b>(row, col)[2] = FixComputedColor(new_red);
 		}
 	}
-
-	return pic;
 }
 
-// SearchForTemplate
-// Precondition: search.jpg and temp.jpg exists in the code directory
-//               and is a valid JPG.
-// Postcondition: Returns a vector of the row and col for the search image
-//                that contains the most pixels that matches the template
-Mat BackgroundRemover(Mat front, Mat back) {
+void PrepareImages(Mat& image) {
+	GaussianBlur(image, image, Size(gaus_blur, gaus_blur), 0);
+	medianBlur(image, image, median_blur);
+	ModifyContrast(image);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+int HowSimilarImagesAre(const Mat& search, const Mat& templ) {
+	Ptr<SIFT> detector = SIFT::create(min_hessian);
+	vector<KeyPoint> keypoints_template, keypoints_search;
+	Mat descriptor_template, descriptor_search;
+	detector->detectAndCompute(templ, noArray(), keypoints_template, descriptor_template);
+	detector->detectAndCompute(search, noArray(), keypoints_search, descriptor_search);
+
+	Ptr<DescriptorMatcher> feature_matcher = DescriptorMatcher::create(DescriptorMatcher::FLANNBASED);
+	vector< vector<DMatch> > matches;
+	feature_matcher->knnMatch(descriptor_template, descriptor_search, matches, 2);
+
+
+	vector<DMatch> good_matches;
+	for (size_t i = 0; i < matches.size(); i++) {
+		if (matches[i][0].distance < ratio_thresh * matches[i][1].distance) {
+			good_matches.push_back(matches[i][0]);
+		}
+	}
+
+	Mat drawn_matches;
+	drawMatches(templ, keypoints_template, search, keypoints_search, good_matches, drawn_matches, Scalar::all(-1),
+		Scalar::all(-1), vector<char>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
+	imshow("Good Matches", drawn_matches);
+	waitKey();
+
+	return (int)good_matches.size();
+}
+
+int TemplateMatchingWithObject(const Mat& object) {
+	//Possible detect left vs right here first???
+
+	int most_similar_file = -1;
+	int highest_similar_value = -1;
+
+	int i = 0;
+	while(true) {
+		string file_name = template_path + to_string(i) + ".jpg";
+		Mat templ = imread(file_name);
+		if (templ.empty()) break;
+		int current_simi = HowSimilarImagesAre(object, templ);
+		cout << i << " " << current_simi << endl;
+		if (current_simi > highest_similar_value) {
+			highest_similar_value = current_simi;
+			most_similar_file = i;
+		}
+		i++;
+	}
+	if (highest_similar_value >= similarity_threshold) {	//matches a template
+		return most_similar_file;
+	}
+	else {	//fails to detect hand
+		return -1;
+	}
+}
+
+
+
+
+
+
+
+
+
+
+
+Mat BackgroundRemover(const Mat& front, const Mat& back) {
 	Mat output(back.rows, back.cols, CV_8U);
 	for (int row = 0; row < back.rows; row++) {
 		for (int col = 0; col < back.cols; col++) {
@@ -193,7 +203,7 @@ Mat BackgroundRemover(Mat front, Mat back) {
 				abs(front_color_r - back_color_r) < background_remover_thresh) {	//Very similar
 				output.at<uchar>(row, col) = 0;
 			}
-			else {	//Not similar at all	Hand detected
+			else {	//Not similar. Object here
 				output.at<uchar>(row, col) = 255;
 			}
 		}
@@ -201,40 +211,23 @@ Mat BackgroundRemover(Mat front, Mat back) {
 	return output;
 }
 
-//int getMaxAreaContourId(vector <vector<cv::Point>> contours) {
-//    double maxArea = 0;
-//    int maxAreaContourId = -1;
-//    for (int j = 0; j < contours.size(); j++) {
-//        double newArea = cv::contourArea(contours.at(j));
-//        if (newArea > maxArea) {
-//            maxArea = newArea;
-//            maxAreaContourId = j;
-//			bounding_rect = boundingRect(contours[j]);
-//        } // End if
-//    } // End for
-//    return maxAreaContourId;
-//} // End function
 
 
-int FindBiggestContour(vector <vector<Point>> contours, Rect& bounding_rect) {
-	double biggest_area = -1;
-	int biggest_contour = -1;
-	int i = 0;
-	while (i < contours.size()) {
-		double current_area = contourArea(contours.at(i));
-		if (current_area >= biggest_area) {
-			biggest_area = current_area;
-			biggest_contour = i;
-
-		}
-		i++;
-	}
-	bounding_rect = boundingRect(contours[biggest_contour]);
-	return biggest_contour;
-}
 
 
-int HandMovementDirection(Hand current, Hand previous) {
+
+
+
+
+
+
+
+
+
+
+
+
+int HandMovementDirection(const Hand& current, const Hand& previous) {
 	int change_in_x = current.location.x - previous.location.x;
 	int change_in_y = current.location.y - previous.location.y;
 	if (current.type == -1 || previous.type == -1) {
@@ -268,8 +261,7 @@ int HandMovementDirection(Hand current, Hand previous) {
 	}
 }
 
-
-Mat MovementDirectionShape(int direction) {
+Mat MovementDirectionShape(const int direction) {
 	Mat shape;
 	if (direction == -1) {
 		shape = imread("none.jpg");
@@ -293,29 +285,12 @@ Mat MovementDirectionShape(int direction) {
 	return shape;
 }
 
-//void CreateRectangle(Mat frame) {
-//	int x = 0;
-//	int y = 0;
-//	int width = 10;
-//	int height = 20;
-//
-//
-//	// our rectangle...
-//	cv::Rect rect(x, y, width, height);
-//	// and its top left corner...
-//	cv::Point pt1(x, y);
-//	// and its bottom right corner.
-//	cv::Point pt2(x + width, y + height);
-//
-//
-//	cv::rectangle(frame, pt1, pt2, cv::Scalar(0, 255, 0));
-//}
 
 //Given a coordinate, it will put the text on the frame
 //No hands means
 		//hand_pos = -1, -1
 		//h_type == 8
-void PrintHandLocation(Mat frame, Point hand_pos) {
+void PrintHandLocation(Mat& frame, const Point hand_pos) {
 	string hand_location = "Hand Location: (" + to_string(hand_pos.x) + ", " + to_string(hand_pos.y) + ")";
 	putText(frame, hand_location, Point{ 3, frame.rows - 6 }, 1, 1.5, text_color, 2);
 }
@@ -324,7 +299,7 @@ void PrintHandLocation(Mat frame, Point hand_pos) {
 //No hands means
 		//hand_pos = -1, -1
 		//h_type == 8
-void PrintHandType(Mat frame, int h_type) {
+void PrintHandType(Mat& frame, const int h_type) {
 	string type;
 
 	if (h_type == -1) {
@@ -353,83 +328,34 @@ void PrintHandType(Mat frame, int h_type) {
 	putText(frame, hand_type, Point{ 3, frame.rows - 12 }, 1, 1.5, text_color, 2);
 }
 
-void PrepareImages(Mat& image) {
-	GaussianBlur(image, image, Size(gaus_blur, gaus_blur), 0);
-	medianBlur(image, image, median_blur);
-	image = ModifyContrast(image);
-}
-
-Mat ObtainFrontObject(Mat& object, Rect& bounding_rect) {
-	Mat thresh;
-	threshold(object, thresh, 90, 255, THRESH_BINARY);
-	//imshow("s", object);
-	//waitKey(0);
-
-	vector<vector<Point>> contours;
-	vector<Vec4i> hierarchy;
-	findContours(thresh, contours, hierarchy, RETR_TREE, CHAIN_APPROX_SIMPLE);
-
-	Mat object_copy = object.clone();
 
 
-	drawContours(object, contours, FindBiggestContour(contours, bounding_rect), Scalar(0, 255, 0), 2);
 
-	rectangle(object_copy, bounding_rect, Scalar(0, 255, 0), 2);
 
-	return object(bounding_rect);
-}
 
-//Mat ObjectCropper(Mat& object) {
-//	float height = object.size().height;
-//	float width = object.size().width;
-//	if (height >= width) {
-//		if (height / width < 1.8) {}
-//		else {
-//			object = object(Range(0, height - (height / 3)), Range(0, width));
-//		}
-//	}
-//	else {
-//		if (width / height < 1.8) {}
-//		else {
-//			object = object(Range(0, width), Range(0, height));
-//		}
-//	}
-//	return object;
-//}
 
-int TemplateMatchingWithObject(Mat object) {
-	//Possible detect left vs right here first???
 
-	int most_similar_file = -1;
-	int highest_similar_value = -1;
 
-	for (int i = 0; i < num_template_files; i++) {
-		string file_name = "Templates\\" + to_string(i) + ".jpg";
-		Mat templ = imread(file_name);
 
-		int current_simi = HowSimilarImagesAre(object, templ);
-		cout << i << " " << current_simi << endl;
-		if (current_simi > highest_similar_value) {
-			highest_similar_value = current_simi;
-			most_similar_file = i;
-		}
-	}
-	if (highest_similar_value >= similarity_threshold) {	//matches a template
-		return most_similar_file;
-	}
-	else {	//fails to detect hand
-		return -1;
-	}
-}
+
+
+
+
+
+
+
+
+
+
+
 
 // Detects and extracts the background from given video
 // preconditions: video is correctly formatted and allocated
 // postconditions: the calculated background from the video is returned as a Mat
-Mat extractBackground(const VideoCapture& cap) {
-	VideoCapture video = cap;
-	int const frame_width = (int)video.get(CAP_PROP_FRAME_WIDTH);
-	int const frame_height = (int)video.get(CAP_PROP_FRAME_HEIGHT);
-	int const number_of_frames = (int)video.get(CAP_PROP_FRAME_COUNT);
+Mat ExtractBackground(VideoCapture& video) {
+	const int frame_width = (int)video.get(CAP_PROP_FRAME_WIDTH);
+	const int frame_height = (int)video.get(CAP_PROP_FRAME_HEIGHT);
+	const int number_of_frames = (int)video.get(CAP_PROP_FRAME_COUNT);
 	vector<int> random_frames;
 
 	// Determine which random frames to use for background calculation
@@ -482,128 +408,294 @@ Mat extractBackground(const VideoCapture& cap) {
 	// Average every pixel in background to get final background from video
 	for (int row = 0; row < frame_height; row++) {
 		for (int col = 0; col < frame_width; col++) {
-			extracted_background.at<Vec3b>(row, col)[2] = FixComputedColor(backgroundPixels.at(row).at(col).at(2) / number_random_frames);
-			extracted_background.at<Vec3b>(row, col)[1] = FixComputedColor(backgroundPixels.at(row).at(col).at(1) / number_random_frames);
-			extracted_background.at<Vec3b>(row, col)[0] = FixComputedColor(backgroundPixels.at(row).at(col).at(0) / number_random_frames);
+			extracted_background.at<Vec3b>(row, col)[2] = 
+						FixComputedColor(backgroundPixels.at(row).at(col).at(2) / number_random_frames);
+			extracted_background.at<Vec3b>(row, col)[1] = 
+						FixComputedColor(backgroundPixels.at(row).at(col).at(1) / number_random_frames);
+			extracted_background.at<Vec3b>(row, col)[0] = 
+						FixComputedColor(backgroundPixels.at(row).at(col).at(0) / number_random_frames);
 		}
 	}
+	video.set(CAP_PROP_POS_MSEC, 0);
 	return extracted_background;
 }
 
-//// Main Method
-//// Precondition:
-//// Postcondition:
-//int main(int argc, char* argv[]) {
-//	//First determine what type of arrow/shape.   Display arrow/shape
-//	//Mat arrow = CreateArrow(0, true);
-//	//arrow.copyTo(background(Rect(10, 10, arrow.cols, arrow.rows)));
-//
-//	VideoCapture cap(path);
-//	if (!cap.isOpened()) return -1;
-//
-//	Mat frame;
-//	Mat background;
-//	Point previous_hand_loc;
-//	bool first_frame = true;
-//
-//	int const frame_width = cap.get(CAP_PROP_FRAME_WIDTH);
-//	int const frame_height = cap.get(CAP_PROP_FRAME_HEIGHT);
-//	VideoWriter output_vid("output.avi", VideoWriter::fourcc('M', 'J', 'P', 'G'), 30, Size(frame_width, frame_height));
-//
-//	while (true) {
-//		cap >> frame;				// Reads in image frame
-//		if (!frame.data) break;	// if there's no more frames then break
-//
-//		//Do STUFF WITH FRAME
-//		if (first_frame) {
-//			cvtColor(frame, frame, COLOR_BGR2GRAY, 0);
-//			GaussianBlur(frame, frame, Size(7, 7), 2.0, 2.0);
-//			Canny(frame, frame, 20, 60);
-//			background = frame;
-//			first_frame = false;
-//		}
-//		else {
-//			//
-//
-//			//AnalyzeSegment
-//			//
-//		}
-//
-//		imshow("Video", frame);
-//		waitKey(30);
-//		output_vid.write(frame);
-//	}
-//
-//	output_vid.release();
-//	cap.release();
-//	destroyAllWindows();
-//	return 0;
-//}
 
 
-int main() {
-	Mat back = imread("background.jpg");
-	Mat front = imread("front.jpg");
 
-	PrepareImages(front);
-	PrepareImages(back);
 
-	//imshow("ascasc", front);
-	//waitKey(0);
 
-  //Mat hsv_front;
-	//cvtColor(front, hsv_front, COLOR_BGR2HSV);
-	//vector<Mat> channels_front;
-	//split(front, channels_front);
-	//Mat V_front = channels_front[2];
 
-	//Mat hsv_back;
-	//cvtColor(back, hsv_back, COLOR_BGR2HSV);
-	//vector<Mat> channels_back;
-	//split(back, channels_back);
-	//Mat V_back = channels_back[2];
 
-  //cvtColor(front, front, COLOR_BGR2GRAY);
-	//Canny(V_front, V_front, 20, 60);
-	//Canny(V_back, V_back, 20, 60);
 
-	//imshow("ascasc", V_front);
-	//waitKey(0);
 
-	//imshow("ascasc", V_back);
-	//waitKey(0);
 
-	Mat object = BackgroundRemover(front, back);
-	imshow("2222", object);
-	waitKey(0);
 
-	Rect bounding_rect;
-	Mat only_object = ObtainFrontObject(object, bounding_rect);
-	imshow("objjjj", object);
-	waitKey(0);
-	//only_object = ObjectCropper(only_object);
-	//resize(only_object, only_object, Size(300, 490), INTER_LINEAR);
-	imwrite("t.jpg", only_object);
-	imshow("None approximation", only_object);
-	waitKey(0);
 
-	//only_object = imread("2.jpg");
 
-	int type = TemplateMatchingWithObject(only_object);
-	cout << "TYPEE!! " << type << endl;
-	Hand hand;
-	if (type != -1) {
-		hand.type = type;
-		hand.location.x = bounding_rect.x;
-		hand.location.y = bounding_rect.y;
+vector<vector<Point>> FindContours(const Mat& object) {
+	Mat thresh;
+	threshold(object, thresh, 90, 255, THRESH_BINARY);
+	vector<vector<Point>> contours;
+	vector<Vec4i> hierarchy;
+	findContours(thresh, contours, hierarchy, RETR_TREE, CHAIN_APPROX_SIMPLE);
 
-	}
+	return contours;
 }
 
-//// Main just to test ExtractBackground()
+int FindNthBiggestContour(const vector<vector<Point>>& contours, Rect& box, const int n) {
+	if (contourArea(contours[n]) >= min_contour_area) {
+		box = boundingRect(contours[n]);
+		return int(contours.size() - n);
+	}
+	return -1;
+}
+
+bool CompareContourAreas(const vector<Point> contour1, const vector<Point> contour2) {///////////////////////////////////////////////
+	double i = fabs(contourArea(Mat(contour1)));
+	double j = fabs(contourArea(Mat(contour2)));
+	return (i < j);
+}
+
+
+
+
+
+
+
+
+
+
+
+Hand SearchForHand(const Mat& front, const vector<vector<Point>>& contours, Rect& box) {
+	Hand hand;
+	for (int i = 1; i <= contours.size(); i++) {
+		int contour_index = FindNthBiggestContour(contours, box, i);
+		if (contour_index == -1) {
+			break;
+		}
+		drawContours(front, contours, contour_index, Scalar(0, 255, 0), 2);
+		Mat pic(front.rows, front.cols, CV_8U);
+		rectangle(pic, box, Scalar(0, 255, 0), 2); //draws rectangle/////////////////////////////////////////
+
+		Mat only_object = front(box);
+		int type = TemplateMatchingWithObject(only_object);
+		cout << "TYPEE!! " << type << endl;
+		if (type != -1) {
+			hand.type = type;
+			hand.location.x = box.x;
+			hand.location.y = box.y;
+			return hand;
+		}
+	}
+	return hand;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+// Main Method
+// Precondition:
+// Postcondition:
+int main(int argc, char* argv[]) {
+	VideoCapture cap(video_name_path);
+	if (!cap.isOpened()) return -1;
+
+	int const frame_width = (int)cap.get(CAP_PROP_FRAME_WIDTH);
+	int const frame_height = (int)cap.get(CAP_PROP_FRAME_HEIGHT);
+	Mat frame;
+	Mat background = ExtractBackground(cap);
+	//Mat background = imread("out_back.jpg");
+	PrepareImages(background);
+	Hand current_hand;	
+	Hand previous_hand;
+	Mat original_frame(frame_height, frame_width, CV_8UC3);
+	Mat front(frame_height, frame_width, CV_8UC3);
+
+	//imshow("Video", background);
+	//imwrite("out_back.jpg", background);
+	//waitKey(0);
+	
+	////////bool first_frame = true;
+
+
+	VideoWriter output_vid("output.avi", VideoWriter::fourcc('M', 'J', 'P', 'G'), 30, Size(frame_width, frame_height));
+	int frame_num = 1;	//1106 frames per 40sec video
+	while (true) {
+		if (frame_num % skip_frames == 0) {	//decreases the number of frames being read in
+			cap >> frame;				// Reads in image frame
+			if (!frame.data) break;	// if there's no more frames then break
+
+			//cout << "sssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss" << endl;
+			//imshow("Video", frame);
+			//imwrite("out_back.jpg", background);
+			//waitKey(0);
+			original_frame = frame.clone();
+			PrepareImages(frame);
+			front = BackgroundRemover(frame, background);
+
+
+
+			vector<vector<Point>> contours = FindContours(front);
+			sort(contours.begin(), contours.end(), CompareContourAreas);
+			Rect box;
+
+
+
+			current_hand = SearchForHand(front, contours, box);
+
+
+
+			//Hand is either detected or not	//Print info to screen
+			PrintHandType(original_frame, current_hand.type);
+			PrintHandLocation(original_frame, current_hand.location);
+			Mat shape = MovementDirectionShape(HandMovementDirection(current_hand, previous_hand));
+			shape.copyTo(original_frame(Rect(100, 200, shape.cols, shape.rows)));
+			if (current_hand.type != -1) {
+				rectangle(original_frame, box, Scalar(0, 255, 0), 2);
+			}
+
+
+			previous_hand = current_hand;
+
+
+			//imshow("Video", frame);
+			//waitKey(30);
+			output_vid.write(original_frame);
+			frame_num++;
+		}
+		else {
+			frame_num++;
+		}
+	}
+
+	output_vid.release();
+	cap.release();
+	//destroyAllWindows();
+	return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//if (first_frame) {
+//	cvtColor(frame, frame, COLOR_BGR2GRAY, 0);
+//	GaussianBlur(frame, frame, Size(7, 7), 2.0, 2.0);
+//	Canny(frame, frame, 20, 60);
+//	background = frame;
+//	first_frame = false;
+//}
+//else {
+//	//
+
+
+//int main() {
+//	Mat back = imread("background.jpg");
+//	Mat front = imread("front.jpg");
+//
+//	PrepareImages(front);
+//	PrepareImages(back);
+//
+//	//imshow("ascasc", front);
+//	//waitKey(0);
+//
+//  //Mat hsv_front;
+//	//cvtColor(front, hsv_front, COLOR_BGR2HSV);
+//	//vector<Mat> channels_front;
+//	//split(front, channels_front);
+//	//Mat V_front = channels_front[2];
+//
+//	//Mat hsv_back;
+//	//cvtColor(back, hsv_back, COLOR_BGR2HSV);
+//	//vector<Mat> channels_back;
+//	//split(back, channels_back);
+//	//Mat V_back = channels_back[2];
+//
+//  //cvtColor(front, front, COLOR_BGR2GRAY);
+//	//Canny(V_front, V_front, 20, 60);
+//	//Canny(V_back, V_back, 20, 60);
+//
+//	//imshow("ascasc", V_front);
+//	//waitKey(0);
+//
+//	//imshow("ascasc", V_back);
+//	//waitKey(0);
+//
+//	Mat object = BackgroundRemover(front, back);
+//	imshow("2222", object);
+//	waitKey(0);
+//
+//	Rect box;
+//	Mat only_object = ObtainFrontObject(object, box);
+//	imshow("objjjj", object);
+//	waitKey(0);
+//	//only_object = ObjectCropper(only_object);
+//	//resize(only_object, only_object, Size(300, 490), INTER_LINEAR);
+//	imwrite("t.jpg", only_object);
+//	imshow("None approximation", only_object);
+//	waitKey(0);
+//
+//	//only_object = imread("2.jpg");
+//
+//	int type = TemplateMatchingWithObject(only_object);
+//	cout << "TYPEE!! " << type << endl;
+//	Hand hand;
+//	if (type != -1) {
+//		hand.type = type;
+//		hand.location.x = box.x;
+//		hand.location.y = box.y;
+//
+//	}
+//}
+
+// Main just to test ExtractBackground()
 //int main() {
 //	VideoCapture cap;
 //	cap.open("india.mp4");
 //	Mat background = ExtractBackground(cap);
 //	imwrite("background.jpg", background);
+//}
+
+
+//Mat ObjectCropper(Mat& object) {
+//	float height = object.size().height;
+//	float width = object.size().width;
+//	if (height >= width) {
+//		if (height / width < 1.8) {}
+//		else {
+//			object = object(Range(0, height - (height / 3)), Range(0, width));
+//		}
+//	}
+//	else {
+//		if (width / height < 1.8) {}
+//		else {
+//			object = object(Range(0, width), Range(0, height));
+//		}
+//	}
+//	return object;
 //}
