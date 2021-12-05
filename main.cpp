@@ -24,9 +24,9 @@ double const contrast_num = 1.5;
 int const gaus_blur = 21;
 int const background_remover_thresh = 30;
 int const median_blur = 15;
-string const template_path = "Template\\";
+string const template_path = "Templates\\";
 int const skip_frames = 20;
-int const min_contour_area = 50;////////////////////////////
+int const min_contour_area = 14000;
 int const similarity_threshold = 13;
 int const movement_threshold = 10;
 int const min_hessian = 400;
@@ -161,6 +161,7 @@ int TemplateMatchingWithObject(const Mat& object) {
 	while(true) {
 		string file_name = template_path + to_string(i) + ".jpg";
 		Mat templ = imread(file_name);
+
 		if (templ.empty()) break;
 		int current_simi = HowSimilarImagesAre(object, templ);
 		cout << i << " " << current_simi << endl;
@@ -433,7 +434,7 @@ Mat ExtractBackground(VideoCapture& video) {
 
 
 
-vector<vector<Point>> FindContours(const Mat& object) {
+vector<vector<Point>> FindImageContours(const Mat& object) {
 	Mat thresh;
 	threshold(object, thresh, 90, 255, THRESH_BINARY);
 	vector<vector<Point>> contours;
@@ -444,9 +445,10 @@ vector<vector<Point>> FindContours(const Mat& object) {
 }
 
 int FindNthBiggestContour(const vector<vector<Point>>& contours, Rect& box, const int n) {
-	if (contourArea(contours[n]) >= min_contour_area) {
-		box = boundingRect(contours[n]);
-		return int(contours.size() - n);
+	int index = contours.size() - n;
+	if (contourArea(contours[index]) >= min_contour_area) {
+		box = boundingRect(contours[index]);
+		return index;
 	}
 	return -1;
 }
@@ -469,6 +471,7 @@ bool CompareContourAreas(const vector<Point> contour1, const vector<Point> conto
 
 Hand SearchForHand(const Mat& front, const vector<vector<Point>>& contours, Rect& box) {
 	Hand hand;
+	Mat only_object;
 	for (int i = 1; i <= contours.size(); i++) {
 		int contour_index = FindNthBiggestContour(contours, box, i);
 		if (contour_index == -1) {
@@ -476,9 +479,9 @@ Hand SearchForHand(const Mat& front, const vector<vector<Point>>& contours, Rect
 		}
 		drawContours(front, contours, contour_index, Scalar(0, 255, 0), 2);
 		Mat pic(front.rows, front.cols, CV_8U);
-		rectangle(pic, box, Scalar(0, 255, 0), 2); //draws rectangle/////////////////////////////////////////
+		rectangle(front, box, Scalar(0, 255, 0), 2); //draws rectangle/////////////////////////////////////////
 
-		Mat only_object = front(box);
+		only_object = front(box);
 		int type = TemplateMatchingWithObject(only_object);
 		cout << "TYPEE!! " << type << endl;
 		if (type != -1) {
@@ -486,8 +489,13 @@ Hand SearchForHand(const Mat& front, const vector<vector<Point>>& contours, Rect
 			hand.location.x = box.x;
 			hand.location.y = box.y;
 			return hand;
-		}
+		}	
+
 	}
+	//imshow("sssssssssss", front);
+	//waitKey(0);
+	//imshow("sssssssss5555ss", only_object);
+	//waitKey(0);
 	return hand;
 }
 
@@ -544,7 +552,7 @@ int main(int argc, char* argv[]) {
 
 
 
-			vector<vector<Point>> contours = FindContours(front);
+			vector<vector<Point>> contours = FindImageContours(front);
 			sort(contours.begin(), contours.end(), CompareContourAreas);
 			Rect box;
 
@@ -587,9 +595,41 @@ int main(int argc, char* argv[]) {
 
 
 
+/////////////////////////////////////////////////////PICTURE ONLY
 
-
-
+//int main() {
+//	Mat frame = imread("front_true.jpg");
+//	Mat background = imread("background_true.jpg");
+//	PrepareImages(background);
+//	Hand current_hand;
+//	Hand previous_hand;////
+//
+//
+//	Mat original_frame(background.rows, background.cols, CV_8UC3);
+//	Mat front(background.rows, background.cols, CV_8UC3);
+//
+//
+//	original_frame = frame.clone();
+//	PrepareImages(frame);
+//	front = BackgroundRemover(frame, background);
+//
+//	vector<vector<Point>> contours = FindImageContours(front);
+//	sort(contours.begin(), contours.end(), CompareContourAreas);
+//	Rect box;
+//
+//	current_hand = SearchForHand(front, contours, box);
+//
+//	//Hand is either detected or not	//Print info to screen
+//	PrintHandType(original_frame, current_hand.type);
+//	PrintHandLocation(original_frame, current_hand.location);
+//	Mat shape = MovementDirectionShape(HandMovementDirection(current_hand, previous_hand));
+//	shape.copyTo(original_frame(Rect(100, 200, shape.cols, shape.rows)));
+//	if (current_hand.type != -1) {
+//		rectangle(original_frame, box, Scalar(0, 255, 0), 2);
+//	}
+//
+//	imwrite("done.jpg", original_frame);
+//}
 
 
 
