@@ -137,7 +137,7 @@ float HowSimilarImagesAre(Mat hand, Mat background) {
 	Ptr<SIFT> detector = SIFT::create(minHessian);
 	vector<KeyPoint> keypoints_template, keypoints_background;
 	Mat descriptor_template, descriptor_background;
-	detector->detectAndCompute(templ, noArray(), keypoints_template, descriptor_template);
+	detector->detectAndCompute(hand, noArray(), keypoints_template, descriptor_template);
 	detector->detectAndCompute(background, noArray(), keypoints_background, descriptor_background);
 	
 	Ptr<DescriptorMatcher> feature_matcher = DescriptorMatcher::create(DescriptorMatcher::FLANNBASED);
