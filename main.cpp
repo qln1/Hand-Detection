@@ -155,7 +155,7 @@ float HowSimilarImagesAre(Mat hand, Mat background) {
 	}
 	
 	Mat drawn_matches;
-	drawMatches(templ, keypoints_template, background, keypoints_background, good_matches, drawn_matches, Scalar::all(-1),
+	drawMatches(hand, keypoints_template, background, keypoints_background, good_matches, drawn_matches, Scalar::all(-1),
 		Scalar::all(-1), vector<char>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
 	imshow("Good Matches", drawn_matches);
 	waitKey();
