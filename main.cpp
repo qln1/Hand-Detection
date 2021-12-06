@@ -30,7 +30,7 @@ int const min_contour_area = 14000;
 int const similarity_threshold = 11;
 int const movement_threshold = 10;
 int const min_hessian = 400;
-float const ratio_thresh = 0.5;
+float const ratio_thresh = 0.7;
 int const number_random_frames = 30;
 
 struct Hand {
@@ -478,8 +478,9 @@ Hand SearchForHand(const Mat& frame, const Mat& front, const vector<vector<Point
 		}
 		drawContours(front, contours, contour_index, Scalar(0, 255, 0), 2);
 		rectangle(front, box, Scalar(0, 255, 0), 2); //draws rectangle/////////////////////////////////////////
-
-		only_object = frame(box);
+		Mat grey;
+		cvtColor(frame, grey, COLOR_BGR2GRAY);
+		only_object = grey(box);
 		imshow("asdcxdf", only_object);
 
 		int type = TemplateMatchingWithObject(only_object);
@@ -618,7 +619,7 @@ int main() {
 	sort(contours.begin(), contours.end(), CompareContourAreas);
 	Rect box;
 
-	current_hand = SearchForHand(frame, front, contours, box);
+	current_hand = SearchForHand(original_frame, front, contours, box);
 
 	//Hand is either detected or not	//Print info to screen
 	PrintHandType(original_frame, current_hand.type);
