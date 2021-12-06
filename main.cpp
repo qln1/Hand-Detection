@@ -20,10 +20,10 @@ using namespace std;
 
 Scalar const text_color = { 255, 0 ,0 };
 string const video_name_path = "hand.mp4";
-double const contrast_num = 1.5;
-int const gaus_blur = 21;
+double const contrast_num = 1.25;
+int const gaus_blur = 9;
 int const background_remover_thresh = 30;
-int const median_blur = 15;
+int const median_blur = 5;
 string const template_path = "Templates\\";
 int const skip_frames = 20;
 int const min_contour_area = 14000;
@@ -103,9 +103,11 @@ void ModifyContrast(Mat& pic) {
 }
 
 void PrepareImages(Mat& image) {
-	GaussianBlur(image, image, Size(gaus_blur, gaus_blur), 0);
+	//GaussianBlur(image, image, Size(gaus_blur, gaus_blur), 0);
+	GaussianBlur(image, image, Size(gaus_blur, gaus_blur), 3);
+	
 	medianBlur(image, image, median_blur);
-	ModifyContrast(image);
+	ModifyContrast(image);imshow("ssssssssssssssssssasc", image);
 }
 
 
@@ -468,7 +470,7 @@ bool CompareContourAreas(const vector<Point> contour1, const vector<Point> conto
 
 
 
-Hand SearchForHand(const Mat& front, const vector<vector<Point>>& contours, Rect& box) {
+Hand SearchForHand(const Mat& frame, const Mat& front, const vector<vector<Point>>& contours, Rect& box) {
 	Hand hand;
 	Mat only_object;
 	for (int i = 1; i <= contours.size(); i++) {
@@ -477,10 +479,12 @@ Hand SearchForHand(const Mat& front, const vector<vector<Point>>& contours, Rect
 			break;
 		}
 		drawContours(front, contours, contour_index, Scalar(0, 255, 0), 2);
-		Mat pic(front.rows, front.cols, CV_8U);
-		rectangle(front, box, Scalar(0, 255, 0), 2); //draws rectangle/////////////////////////////////////////
+		Mat pic(front.rows, front.cols, CV_8UC3);
+		rectangle(frame, box, Scalar(0, 255, 0), 2); //draws rectangle/////////////////////////////////////////
 
-		only_object = front(box);
+		only_object = frame(box);
+		imshow("asdcxdf", only_object);
+
 		int type = TemplateMatchingWithObject(only_object);
 		cout << "TYPEE!! " << type << endl;
 		if (type != -1) {
@@ -611,12 +615,11 @@ int main() {
 	original_frame = frame.clone();
 	PrepareImages(frame);
 	front = BackgroundRemover(frame, background);
-
 	vector<vector<Point>> contours = FindImageContours(front);
 	sort(contours.begin(), contours.end(), CompareContourAreas);
 	Rect box;
 
-	current_hand = SearchForHand(front, contours, box);
+	current_hand = SearchForHand(frame, front, contours, box);
 
 	//Hand is either detected or not	//Print info to screen
 	PrintHandType(original_frame, current_hand.type);
