@@ -18,13 +18,13 @@ using namespace std;
 #define MOVE_LEFT 3;
 #define MOVE_RIGHT 4;
 
-Scalar const text_color = { 255, 0 ,0 };
+Scalar const text_color = { 0, 255 ,0 };
 string const video_name_path = "hand.mp4";
 double const contrast_num = 1.25;
 int const gaus_blur = 9;
-int const background_remover_thresh = 30;
+int const background_remover_thresh = 18;
 int const median_blur = 5;
-string const template_path = "Templates\\";
+string const template_path = "Templates\\hand";
 int const skip_frames = 20;
 int const min_contour_area = 14000;
 int const similarity_threshold = 11;
@@ -103,11 +103,15 @@ void ModifyContrast(Mat& pic) {
 }
 
 void PrepareImages(Mat& image) {
-	//GaussianBlur(image, image, Size(gaus_blur, gaus_blur), 0);
 	GaussianBlur(image, image, Size(gaus_blur, gaus_blur), 3);
-	
 	medianBlur(image, image, median_blur);
-	ModifyContrast(image);imshow("ssssssssssssssssssasc", image);
+	ModifyContrast(image);
+
+	vector<Mat> channels_front;
+	split(image, channels_front);
+	image = channels_front[0];
+	imshow("asdfsadfsdfsdfsdfsdasdfafwfwfwewef", image);
+	waitKey(0);
 }
 
 
@@ -194,15 +198,9 @@ Mat BackgroundRemover(const Mat& front, const Mat& back) {
 	Mat output(back.rows, back.cols, CV_8U);
 	for (int row = 0; row < back.rows; row++) {
 		for (int col = 0; col < back.cols; col++) {
-			int front_color_b = front.at<Vec3b>(row, col)[0];
-			int front_color_g = front.at<Vec3b>(row, col)[1];
-			int front_color_r = front.at<Vec3b>(row, col)[2];
-			int back_color_b = back.at<Vec3b>(row, col)[0];
-			int back_color_g = back.at<Vec3b>(row, col)[1];
-			int back_color_r = back.at<Vec3b>(row, col)[2];
-			if (abs(front_color_b - back_color_b) < background_remover_thresh &&
-				abs(front_color_g - back_color_g) < background_remover_thresh &&
-				abs(front_color_r - back_color_r) < background_remover_thresh) {	//Very similar
+			int front_color = front.at<uchar>(row, col);
+			int back_color = back.at<uchar>(row, col);
+			if (abs(front_color - back_color) < background_remover_thresh) {	//Very similar
 				output.at<uchar>(row, col) = 0;
 			}
 			else {	//Not similar. Object here
@@ -479,8 +477,7 @@ Hand SearchForHand(const Mat& frame, const Mat& front, const vector<vector<Point
 			break;
 		}
 		drawContours(front, contours, contour_index, Scalar(0, 255, 0), 2);
-		Mat pic(front.rows, front.cols, CV_8UC3);
-		rectangle(frame, box, Scalar(0, 255, 0), 2); //draws rectangle/////////////////////////////////////////
+		rectangle(front, box, Scalar(0, 255, 0), 2); //draws rectangle/////////////////////////////////////////
 
 		only_object = frame(box);
 		imshow("asdcxdf", only_object);
@@ -615,6 +612,8 @@ int main() {
 	original_frame = frame.clone();
 	PrepareImages(frame);
 	front = BackgroundRemover(frame, background);
+	imshow("asdax", front);
+	waitKey(0);
 	vector<vector<Point>> contours = FindImageContours(front);
 	sort(contours.begin(), contours.end(), CompareContourAreas);
 	Rect box;
