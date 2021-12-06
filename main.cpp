@@ -123,17 +123,16 @@ void PrepareImages(Mat& image) {
 
 
 
-int HowSimilarImagesAre(const Mat& search, const Mat& templ) {
+int HowSimilarImagesAre(const Mat& hand, const Mat& front) {
 	Ptr<SIFT> detector = SIFT::create(min_hessian);
 	vector<KeyPoint> keypoints_template, keypoints_search;
 	Mat descriptor_template, descriptor_search;
-	detector->detectAndCompute(templ, noArray(), keypoints_template, descriptor_template);
-	detector->detectAndCompute(search, noArray(), keypoints_search, descriptor_search);
+	detector->detectAndCompute(hand, noArray(), keypoints_template, descriptor_template);
+	detector->detectAndCompute(front, noArray(), keypoints_search, descriptor_search);
 
 	Ptr<DescriptorMatcher> feature_matcher = DescriptorMatcher::create(DescriptorMatcher::FLANNBASED);
 	vector< vector<DMatch> > matches;
 	feature_matcher->knnMatch(descriptor_template, descriptor_search, matches, 2);
-
 
 	vector<DMatch> good_matches;
 	for (size_t i = 0; i < matches.size(); i++) {
@@ -143,7 +142,7 @@ int HowSimilarImagesAre(const Mat& search, const Mat& templ) {
 	}
 
 	Mat drawn_matches;
-	drawMatches(templ, keypoints_template, search, keypoints_search, good_matches, drawn_matches, Scalar::all(-1),
+	drawMatches(hand, keypoints_template, front, keypoints_search, good_matches, drawn_matches, Scalar::all(-1),
 		Scalar::all(-1), vector<char>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
 	imshow("Good Matches", drawn_matches);
 	waitKey();
@@ -151,7 +150,7 @@ int HowSimilarImagesAre(const Mat& search, const Mat& templ) {
 	return (int)good_matches.size();
 }
 
-int TemplateMatchingWithObject(const Mat& object) {
+int TemplateMatchingWithObject(const Mat& front) {
 	//Possible detect left vs right here first???
 
 	int most_similar_file = -1;
@@ -160,10 +159,10 @@ int TemplateMatchingWithObject(const Mat& object) {
 	int i = 0;
 	while(true) {
 		string file_name = template_path + to_string(i) + ".jpg";
-		Mat templ = imread(file_name);
+		Mat hand = imread(file_name);
 
-		if (templ.empty()) break;
-		int current_simi = HowSimilarImagesAre(object, templ);
+		if (hand.empty()) break;
+		int current_simi = HowSimilarImagesAre(hand, front);
 		cout << i << " " << current_simi << endl;
 		if (current_simi > highest_similar_value) {
 			highest_similar_value = current_simi;
@@ -482,7 +481,7 @@ Hand SearchForHand(const Mat& front, const vector<vector<Point>>& contours, Rect
 		rectangle(front, box, Scalar(0, 255, 0), 2); //draws rectangle/////////////////////////////////////////
 
 		only_object = front(box);
-		int type = TemplateMatchingWithObject(only_object);
+		int type = TemplateMatchingWithObject(front);
 		cout << "TYPEE!! " << type << endl;
 		if (type != -1) {
 			hand.type = type;
