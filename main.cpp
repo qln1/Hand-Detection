@@ -27,7 +27,7 @@ int const median_blur = 15;
 string const template_path = "Templates\\";
 int const skip_frames = 20;
 int const min_contour_area = 14000;
-int const similarity_threshold = 13;
+int const similarity_threshold = 11;
 int const movement_threshold = 10;
 int const min_hessian = 400;
 float const ratio_thresh = 0.5;
@@ -157,7 +157,7 @@ int TemplateMatchingWithObject(const Mat& front) {
 	int highest_similar_value = -1;
 
 	int i = 0;
-	while(true) {
+	while (true) {
 		string file_name = template_path + to_string(i) + ".jpg";
 		Mat hand = imread(file_name);
 
@@ -325,7 +325,7 @@ void PrintHandType(Mat& frame, const int h_type) {
 	}
 
 	string hand_type = "Hand Type: " + type;
-	putText(frame, hand_type, Point{ 3, frame.rows - 12 }, 1, 1.5, text_color, 2);
+	putText(frame, hand_type, Point{ 3, frame.rows - 30}, 1, 1.5, text_color, 2);
 }
 
 
@@ -408,12 +408,12 @@ Mat ExtractBackground(VideoCapture& video) {
 	// Average every pixel in background to get final background from video
 	for (int row = 0; row < frame_height; row++) {
 		for (int col = 0; col < frame_width; col++) {
-			extracted_background.at<Vec3b>(row, col)[2] = 
-						FixComputedColor(backgroundPixels.at(row).at(col).at(2) / number_random_frames);
-			extracted_background.at<Vec3b>(row, col)[1] = 
-						FixComputedColor(backgroundPixels.at(row).at(col).at(1) / number_random_frames);
-			extracted_background.at<Vec3b>(row, col)[0] = 
-						FixComputedColor(backgroundPixels.at(row).at(col).at(0) / number_random_frames);
+			extracted_background.at<Vec3b>(row, col)[2] =
+				FixComputedColor(backgroundPixels.at(row).at(col).at(2) / number_random_frames);
+			extracted_background.at<Vec3b>(row, col)[1] =
+				FixComputedColor(backgroundPixels.at(row).at(col).at(1) / number_random_frames);
+			extracted_background.at<Vec3b>(row, col)[0] =
+				FixComputedColor(backgroundPixels.at(row).at(col).at(0) / number_random_frames);
 		}
 	}
 	video.set(CAP_PROP_POS_MSEC, 0);
@@ -481,14 +481,14 @@ Hand SearchForHand(const Mat& front, const vector<vector<Point>>& contours, Rect
 		rectangle(front, box, Scalar(0, 255, 0), 2); //draws rectangle/////////////////////////////////////////
 
 		only_object = front(box);
-		int type = TemplateMatchingWithObject(front);
+		int type = TemplateMatchingWithObject(only_object);
 		cout << "TYPEE!! " << type << endl;
 		if (type != -1) {
 			hand.type = type;
 			hand.location.x = box.x;
 			hand.location.y = box.y;
 			return hand;
-		}	
+		}
 
 	}
 	//imshow("sssssssssss", front);
@@ -509,86 +509,86 @@ Hand SearchForHand(const Mat& front, const vector<vector<Point>>& contours, Rect
 
 
 
-// Main Method
-// Precondition:
-// Postcondition:
-int main(int argc, char* argv[]) {
-	VideoCapture cap(video_name_path);
-	if (!cap.isOpened()) return -1;
-
-	int const frame_width = (int)cap.get(CAP_PROP_FRAME_WIDTH);
-	int const frame_height = (int)cap.get(CAP_PROP_FRAME_HEIGHT);
-	Mat frame;
-	Mat background = ExtractBackground(cap);
-	//Mat background = imread("out_back.jpg");
-	PrepareImages(background);
-	Hand current_hand;	
-	Hand previous_hand;
-	Mat original_frame(frame_height, frame_width, CV_8UC3);
-	Mat front(frame_height, frame_width, CV_8UC3);
-
-	//imshow("Video", background);
-	//imwrite("out_back.jpg", background);
-	//waitKey(0);
-	
-	////////bool first_frame = true;
-
-
-	VideoWriter output_vid("output.avi", VideoWriter::fourcc('M', 'J', 'P', 'G'), 30, Size(frame_width, frame_height));
-	int frame_num = 1;	//1106 frames per 40sec video
-	while (true) {
-		if (frame_num % skip_frames == 0) {	//decreases the number of frames being read in
-			cap >> frame;				// Reads in image frame
-			if (!frame.data) break;	// if there's no more frames then break
-
-			//cout << "sssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss" << endl;
-			//imshow("Video", frame);
-			//imwrite("out_back.jpg", background);
-			//waitKey(0);
-			original_frame = frame.clone();
-			PrepareImages(frame);
-			front = BackgroundRemover(frame, background);
-
-
-
-			vector<vector<Point>> contours = FindImageContours(front);
-			sort(contours.begin(), contours.end(), CompareContourAreas);
-			Rect box;
-
-
-
-			current_hand = SearchForHand(front, contours, box);
-
-
-
-			//Hand is either detected or not	//Print info to screen
-			PrintHandType(original_frame, current_hand.type);
-			PrintHandLocation(original_frame, current_hand.location);
-			Mat shape = MovementDirectionShape(HandMovementDirection(current_hand, previous_hand));
-			shape.copyTo(original_frame(Rect(100, 200, shape.cols, shape.rows)));
-			if (current_hand.type != -1) {
-				rectangle(original_frame, box, Scalar(0, 255, 0), 2);
-			}
-
-
-			previous_hand = current_hand;
-
-
-			//imshow("Video", frame);
-			//waitKey(30);
-			output_vid.write(original_frame);
-			frame_num++;
-		}
-		else {
-			frame_num++;
-		}
-	}
-
-	output_vid.release();
-	cap.release();
-	//destroyAllWindows();
-	return 0;
-}
+//// Main Method
+//// Precondition:
+//// Postcondition:
+//int main(int argc, char* argv[]) {
+//	VideoCapture cap(video_name_path);
+//	if (!cap.isOpened()) return -1;
+//
+//	int const frame_width = (int)cap.get(CAP_PROP_FRAME_WIDTH);
+//	int const frame_height = (int)cap.get(CAP_PROP_FRAME_HEIGHT);
+//	Mat frame;
+//	Mat background = ExtractBackground(cap);
+//	//Mat background = imread("out_back.jpg");
+//	PrepareImages(background);
+//	Hand current_hand;
+//	Hand previous_hand;
+//	Mat original_frame(frame_height, frame_width, CV_8UC3);
+//	Mat front(frame_height, frame_width, CV_8UC3);
+//
+//	//imshow("Video", background);
+//	//imwrite("out_back.jpg", background);
+//	//waitKey(0);
+//
+//	////////bool first_frame = true;
+//
+//
+//	VideoWriter output_vid("output.avi", VideoWriter::fourcc('M', 'J', 'P', 'G'), 30, Size(frame_width, frame_height));
+//	int frame_num = 1;	//1106 frames per 40sec video
+//	while (true) {
+//		if (frame_num % skip_frames == 0) {	//decreases the number of frames being read in
+//			cap >> frame;				// Reads in image frame
+//			if (!frame.data) break;	// if there's no more frames then break
+//
+//			//cout << "sssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss" << endl;
+//			//imshow("Video", frame);
+//			//imwrite("out_back.jpg", background);
+//			//waitKey(0);
+//			original_frame = frame.clone();
+//			PrepareImages(frame);
+//			front = BackgroundRemover(frame, background);
+//
+//
+//
+//			vector<vector<Point>> contours = FindImageContours(front);
+//			sort(contours.begin(), contours.end(), CompareContourAreas);
+//			Rect box;
+//
+//
+//
+//			current_hand = SearchForHand(front, contours, box);
+//
+//
+//
+//			//Hand is either detected or not	//Print info to screen
+//			PrintHandType(original_frame, current_hand.type);
+//			PrintHandLocation(original_frame, current_hand.location);
+//			Mat shape = MovementDirectionShape(HandMovementDirection(current_hand, previous_hand));
+//			shape.copyTo(original_frame(Rect(100, 200, shape.cols, shape.rows)));
+//			if (current_hand.type != -1) {
+//				rectangle(original_frame, box, Scalar(0, 255, 0), 2);
+//			}
+//
+//
+//			previous_hand = current_hand;
+//
+//
+//			//imshow("Video", frame);
+//			//waitKey(30);
+//			output_vid.write(original_frame);
+//			frame_num++;
+//		}
+//		else {
+//			frame_num++;
+//		}
+//	}
+//
+//	output_vid.release();
+//	cap.release();
+//	//destroyAllWindows();
+//	return 0;
+//}
 
 
 
@@ -596,39 +596,41 @@ int main(int argc, char* argv[]) {
 
 /////////////////////////////////////////////////////PICTURE ONLY
 
-//int main() {
-//	Mat frame = imread("front_true.jpg");
-//	Mat background = imread("background_true.jpg");
-//	PrepareImages(background);
-//	Hand current_hand;
-//	Hand previous_hand;////
-//
-//
-//	Mat original_frame(background.rows, background.cols, CV_8UC3);
-//	Mat front(background.rows, background.cols, CV_8UC3);
-//
-//
-//	original_frame = frame.clone();
-//	PrepareImages(frame);
-//	front = BackgroundRemover(frame, background);
-//
-//	vector<vector<Point>> contours = FindImageContours(front);
-//	sort(contours.begin(), contours.end(), CompareContourAreas);
-//	Rect box;
-//
-//	current_hand = SearchForHand(front, contours, box);
-//
-//	//Hand is either detected or not	//Print info to screen
-//	PrintHandType(original_frame, current_hand.type);
-//	PrintHandLocation(original_frame, current_hand.location);
-//	Mat shape = MovementDirectionShape(HandMovementDirection(current_hand, previous_hand));
-//	shape.copyTo(original_frame(Rect(100, 200, shape.cols, shape.rows)));
-//	if (current_hand.type != -1) {
-//		rectangle(original_frame, box, Scalar(0, 255, 0), 2);
-//	}
-//
-//	imwrite("done.jpg", original_frame);
-//}
+int main() {
+	Mat frame = imread("front.jpg");
+	Mat background = imread("background.jpg");
+	PrepareImages(background);
+	Hand current_hand;
+	Hand previous_hand;////
+
+
+	Mat original_frame(background.rows, background.cols, CV_8UC3);
+	Mat front(background.rows, background.cols, CV_8UC3);
+
+
+	original_frame = frame.clone();
+	PrepareImages(frame);
+	front = BackgroundRemover(frame, background);
+
+	vector<vector<Point>> contours = FindImageContours(front);
+	sort(contours.begin(), contours.end(), CompareContourAreas);
+	Rect box;
+
+	current_hand = SearchForHand(front, contours, box);
+
+	//Hand is either detected or not	//Print info to screen
+	PrintHandType(original_frame, current_hand.type);
+	PrintHandLocation(original_frame, current_hand.location);
+	Mat shape = MovementDirectionShape(HandMovementDirection(current_hand, previous_hand));
+	shape.copyTo(original_frame(Rect(0, 0, shape.cols, shape.rows)));
+	if (current_hand.type != -1) {
+		rectangle(original_frame, box, Scalar(0, 255, 0), 2);
+	}
+
+	imshow("ddsadcewfwefw", original_frame);
+	waitKey(0);
+	imwrite("done.jpg", original_frame);
+}
 
 
 
