@@ -39,6 +39,7 @@ int const min_hessian = 400;
 float const ratio_thresh = 0.7;
 Scalar const box_color = Scalar(0, 0, 255);
 int const number_random_frames = 80;/////////////////////////////////
+int const sat_val = 15;
 
 int test = 0;
 
@@ -199,7 +200,18 @@ int TemplateMatchingWithObject(const Mat& front) {
 
 
 
-
+void IncreaseSaturation(Mat& image) {
+	Mat saturated;
+	cvtColor(image, saturated, COLOR_BGR2HSV);
+	for (int row = 0; row < saturated.rows; row++) {
+		for (int col = 0; col < saturated.cols; col++) {
+			double originalSaturation = (double)saturated.at<Vec3b>(row, col)[1];
+			int newVal = FixComputedColor(originalSaturation + sat_val);
+			saturated.at<Vec3b>(row, col)[1] = newVal;
+		}
+	}
+	cvtColor(saturated, image, COLOR_HSV2BGR);
+}
 
 
 
@@ -210,6 +222,7 @@ int TemplateMatchingWithObject(const Mat& front) {
 // Postcondition: Will modify image by putting various blurrs and filters on top. image will
 //                be modified slightly differently depending if it is a background or not.
 void PrepareImage(Mat& image, bool is_background) {
+	IncreaseSaturation(image);
 	GaussianBlur(image, image, Size(gaus_blur_size, gaus_blur_size), gaus_blur_amount);
 	medianBlur(image, image, median_blur);
 	ModifyContrast(image);
