@@ -9,6 +9,9 @@
 #include <opencv2/core/types.hpp>
 #include <vector>
 #include <stdlib.h>
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/videoio.hpp>
+#include <opencv2/video.hpp>
 using namespace cv;
 using namespace std;
 
@@ -18,20 +21,26 @@ using namespace std;
 #define MOVE_LEFT 3;
 #define MOVE_RIGHT 4;
 
-Scalar const text_color = { 0, 255 ,0 };
+Scalar const text_color = { 0, 255, 0 };
 string const video_name_path = "hand.mp4";
 double const contrast_num = 1.25;
-int const gaus_blur = 9;
+int const brightness_level = 12;/////////////////////
+int const local_skip_points = 5;
+int const gaus_blur_size = 11;
+int const gaus_blur_amount = 3;
 int const background_remover_thresh = 18;
-int const median_blur = 5;
+int const median_blur = 7;
 string const template_path = "Templates\\hand";
-int const skip_frames = 20;
-int const min_contour_area = 14000;
-int const similarity_threshold = 11;
-int const movement_threshold = 10;
+int const skip_frames = 3;/////////////////////////////////////////////
+int const min_contour_area = 8000;
+int const similarity_threshold = 10;////////////////////////////////////
+int const movement_threshold = 15;
 int const min_hessian = 400;
 float const ratio_thresh = 0.7;
-int const number_random_frames = 30;
+Scalar const box_color = Scalar(0, 0, 255);
+int const number_random_frames = 80;/////////////////////////////////
+
+int test = 0;
 
 struct Hand {
 	Point location = Point(-1, -1);
@@ -102,17 +111,6 @@ void ModifyContrast(Mat& pic) {
 	}
 }
 
-void PrepareImages(Mat& image) {
-	GaussianBlur(image, image, Size(gaus_blur, gaus_blur), 3);
-	medianBlur(image, image, median_blur);
-	ModifyContrast(image);
-
-	vector<Mat> channels_front;
-	split(image, channels_front);
-	image = channels_front[0];
-	imshow("asdfsadfsdfsdfsdfsdasdfafwfwfwewef", image);
-	waitKey(0);
-}
 
 
 
@@ -134,6 +132,9 @@ int HowSimilarImagesAre(const Mat& hand, const Mat& front) {
 	vector<KeyPoint> keypoints_template, keypoints_search;
 	Mat descriptor_template, descriptor_search;
 	detector->detectAndCompute(hand, noArray(), keypoints_template, descriptor_template);
+	imshow("ssss", front);
+	waitKey(0);
+
 	detector->detectAndCompute(front, noArray(), keypoints_search, descriptor_search);
 
 	Ptr<DescriptorMatcher> feature_matcher = DescriptorMatcher::create(DescriptorMatcher::FLANNBASED);
@@ -194,13 +195,55 @@ int TemplateMatchingWithObject(const Mat& front) {
 
 
 
+
+
+// PrepareImage
+// Precondition: Parameters and image is properly formatted, passed in correctly and colored
+// Postcondition: Will modify image by putting various blurrs and filters on top. image will
+//                be modified slightly differently depending if it is a background or not.
+void PrepareImage(Mat& image, bool is_background) {
+	GaussianBlur(image, image, Size(gaus_blur_size, gaus_blur_size), gaus_blur_amount);
+	medianBlur(image, image, median_blur);
+	ModifyContrast(image);
+	if (!is_background) {
+		//saturation + 5;
+		image.convertTo(image, -1, 1, brightness_level);
+	}
+	else {
+		//saturation normal
+	}
+	//cvtColor(image, image, COLOR_BGR2HSV);
+	//vector<Mat> channels_front;
+	//split(image, channels_front);
+	//image = channels_front[2];
+	//imshow("sss", image);
+	//waitKey(0);
+	//imwrite(to_string(test) + ".jpg", image);
+	//test++;
+}
+
+
+
+
+
+// BackgroundRemover
+// Precondition: Parameters are properly formatted, passed in correctly and colored
+// Postcondition: Will return a binary Matt where the white spots are the differences
+//                between the 2 passed in Mats.
 Mat BackgroundRemover(const Mat& front, const Mat& back) {
 	Mat output(back.rows, back.cols, CV_8U);
 	for (int row = 0; row < back.rows; row++) {
 		for (int col = 0; col < back.cols; col++) {
-			int front_color = front.at<uchar>(row, col);
-			int back_color = back.at<uchar>(row, col);
-			if (abs(front_color - back_color) < background_remover_thresh) {	//Very similar
+			int front_color_b = front.at<Vec3b>(row, col)[0];
+			int front_color_g = front.at<Vec3b>(row, col)[1];
+			int front_color_r = front.at<Vec3b>(row, col)[2];
+			int back_color_b = back.at<Vec3b>(row, col)[0];
+			int back_color_g = back.at<Vec3b>(row, col)[1];
+			int back_color_r = back.at<Vec3b>(row, col)[2];
+			if (abs(front_color_b - back_color_b) < background_remover_thresh &&
+				abs(front_color_g - back_color_g) < background_remover_thresh &&
+				abs(front_color_r - back_color_r) < background_remover_thresh
+				) {	//Very similar
 				output.at<uchar>(row, col) = 0;
 			}
 			else {	//Not similar. Object here
@@ -213,6 +256,22 @@ Mat BackgroundRemover(const Mat& front, const Mat& back) {
 
 
 
+//Mat BackgroundRemover(const Mat& front, const Mat& back) {
+//	Mat output(back.rows, back.cols, CV_8U);
+//	for (int row = 0; row < back.rows; row++) {
+//		for (int col = 0; col < back.cols; col++) {
+//			int front_color = front.at<uchar>(row, col);
+//			int back_color = back.at<uchar>(row, col);
+//			if (abs(front_color - back_color) < background_remover_thresh) {	//Very similar
+//				output.at<uchar>(row, col) = 0;
+//			}
+//			else {	//Not similar. Object here
+//				output.at<uchar>(row, col) = 255;
+//			}
+//		}
+//	}
+//	return output;
+//}
 
 
 
@@ -227,14 +286,20 @@ Mat BackgroundRemover(const Mat& front, const Mat& back) {
 
 
 
+
+
+// HandMovementDirection
+// Precondition: Parameters are properly formatted and passed in correctly
+// Postcondition: Will return an integer that tells which way the hand moved.
+//                Either no moving/no hand detected, or up, down, left, or right
 int HandMovementDirection(const Hand& current, const Hand& previous) {
 	int change_in_x = current.location.x - previous.location.x;
 	int change_in_y = current.location.y - previous.location.y;
-	if (current.type == -1 || previous.type == -1) {
+	if (current.type == -1) {
 		return -1;
 	}
 	if (change_in_x >= change_in_y) {
-		if (change_in_x > movement_threshold) {
+		if (change_in_x > movement_threshold && previous.type != -1) {
 			if (change_in_x >= 0) {
 				return MOVE_RIGHT;
 			}
@@ -247,7 +312,7 @@ int HandMovementDirection(const Hand& current, const Hand& previous) {
 		}
 	}
 	else {
-		if (change_in_y > movement_threshold) {
+		if (change_in_y > movement_threshold && previous.type != -1) {
 			if (change_in_y >= 0) {
 				return MOVE_DOWN;
 			}
@@ -261,6 +326,9 @@ int HandMovementDirection(const Hand& current, const Hand& previous) {
 	}
 }
 
+// MovementDirectionShape
+// Precondition: Parameter is properly formatted and passed in correctly
+// Postcondition: Will return an image based on the direction that was passed in
 Mat MovementDirectionShape(const int direction) {
 	Mat shape;
 	if (direction == -1) {
@@ -286,10 +354,9 @@ Mat MovementDirectionShape(const int direction) {
 }
 
 
-//Given a coordinate, it will put the text on the frame
-//No hands means
-		//hand_pos = -1, -1
-		//h_type == 8
+// PrintHandLocation
+// Precondition: Parameters are properly formatted and passed in correctly
+// Postcondition: Will write the hand location on the passed in frame
 void PrintHandLocation(Mat& frame, const Point hand_pos) {
 	string hand_location = "Hand Location: (" + to_string(hand_pos.x) + ", " + to_string(hand_pos.y) + ")";
 	putText(frame, hand_location, Point{ 3, frame.rows - 6 }, 1, 1.5, text_color, 2);
@@ -325,7 +392,7 @@ void PrintHandType(Mat& frame, const int h_type) {
 	}
 
 	string hand_type = "Hand Type: " + type;
-	putText(frame, hand_type, Point{ 3, frame.rows - 30}, 1, 1.5, text_color, 2);
+	putText(frame, hand_type, Point{ 3, frame.rows - 30 }, 1, 1.5, text_color, 2);
 }
 
 
@@ -463,12 +530,125 @@ bool CompareContourAreas(const vector<Point> contour1, const vector<Point> conto
 
 
 
+vector<Point> FindTopEdge(const Mat& object) {
+	vector<Point> points;
+	for (int i = 0; i < object.cols; i += local_skip_points) {
+		for (int j = 0; j < object.rows; j++) {
+			if (object.at<uchar>(j, i) == 255) {//white
+				points.push_back(Point(i, j));
+				break;
+			}
+		}
+	}
+	return points;
+}
+
+int FindLocalMaximaMinima(const vector<Point>& points, const int middle) {
+	vector<int> max, min;
+	int smallest_value = 999999;
+	int smallest_value_index = -1;
+	int biggest_value = -1;
+	int biggest_value_index = -1;
+
+	for (int i = 1; i < points.size() - 1; i++) {
+		//Finds the biggest and smallest value to find the middle
+		if (points[i].y < smallest_value) {
+			smallest_value = points[i].y;
+			smallest_value_index = i;
+		}
+		if (points[i].y > biggest_value) {
+			biggest_value = points[i].y;
+			biggest_value_index = i;
+		}
+
+		bool skip = false;
+		int next = i + 1;
+		int prev = i - 1;
+		if (points[next].y == points[i].y) {
+			if ((next + 1) < int(points.size())) {
+				next++;
+				skip = true;
+			}
+			else break;
+		}
+		if (points[prev].y == points[i].y && (prev - 1) >= 0) {
+				prev--;
+				skip = true;
+		}
 
 
 
 
+		// Condition for local minima 
+		if ((points[prev].y > points[i].y) and
+			(points[i].y < points[next].y))
+			min.push_back(i);
+		// Condition for local maxima 
+		else if ((points[prev].y < points[i].y) and
+			(points[i].y > points[next].y))
+			max.push_back(i);
 
-Hand SearchForHand(const Mat& frame, const Mat& front, const vector<vector<Point>>& contours, Rect& box) {
+		if (skip) {/////////////
+			i++;
+			skip = false;
+		}
+	}
+
+	if (points[points.size() - 1].y == points[points.size() - 2].y) {
+		if (points[points.size() - 2].y < points[points.size() - 3].y) {
+			min.push_back(points.size() - 2);
+		}
+		else {
+			max.push_back(points.size() - 2);
+		}
+	}
+	if (points[0].y == points[1].y) {
+		if (points[1].y < points[2].y) {
+			min.push_back(1);
+		}
+		else {
+			max.push_back(1);
+		}
+	}
+
+	vector<int> true_minima;
+	//int middle = ((biggest_value - smallest_value) / 2);
+	for (int i = 0; i < min.size(); i++) {
+		if (middle > points[min[i]].y) {
+			true_minima.push_back(min[i]);
+		}
+	}
+	vector<int> true_maxima;
+	for (int i = 0; i < max.size(); i++) {
+		if (middle > points[max[i]].y) {
+			true_maxima.push_back(max[i]);
+		}
+	}
+
+
+
+	//for () {
+
+	//}
+
+
+	//if (true_minima.size() - true_maxima.size() == 1 &&
+	//if (true_minima.size() > true_maxima.size() &&
+	if(true_minima.size() > 0 && true_maxima.size() < 6) {
+		if (true_minima.size() == true_maxima.size()) {
+			return (true_maxima.size() + 1);
+		}
+		else if (true_minima.size() - true_maxima.size() == 1) {
+			return true_minima.size();
+		}
+	}
+	return -1;
+}
+
+
+
+
+Hand SearchForHand(const Mat& front, const vector<vector<Point>>& contours, Rect& box) {
 	Hand hand;
 	Mat only_object;
 	for (int i = 1; i <= contours.size(); i++) {
@@ -476,15 +656,20 @@ Hand SearchForHand(const Mat& frame, const Mat& front, const vector<vector<Point
 		if (contour_index == -1) {
 			break;
 		}
-		drawContours(front, contours, contour_index, Scalar(0, 255, 0), 2);
-		rectangle(front, box, Scalar(0, 255, 0), 2); //draws rectangle/////////////////////////////////////////
-		Mat grey;
-		cvtColor(frame, grey, COLOR_BGR2GRAY);
-		only_object = grey(box);
-		imshow("asdcxdf", only_object);
+		Mat pic(front.rows, front.cols, CV_8U, Scalar::all(0));
+		drawContours(pic, contours, contour_index, Scalar(255, 255, 255), FILLED);
 
-		int type = TemplateMatchingWithObject(only_object);
-		cout << "TYPEE!! " << type << endl;
+		only_object = pic(box);
+
+		//imshow("dfdfsd", only_object);
+		//waitKey(0);
+		//imwrite(to_string(test) + "pppppppppppppppppppppppppppppppppppppp.jpg", only_object);
+		//test++;
+
+		int type = FindLocalMaximaMinima(FindTopEdge(only_object), (only_object.rows / 2));
+
+		//int type = TemplateMatchingWithObject(only_object);
+		//cout << "TYPEE!! " << type << endl;
 		if (type != -1) {
 			hand.type = type;
 			hand.location.x = box.x;
@@ -511,128 +696,86 @@ Hand SearchForHand(const Mat& frame, const Mat& front, const vector<vector<Point
 
 
 
-//// Main Method
-//// Precondition:
-//// Postcondition:
-//int main(int argc, char* argv[]) {
-//	VideoCapture cap(video_name_path);
-//	if (!cap.isOpened()) return -1;
-//
-//	int const frame_width = (int)cap.get(CAP_PROP_FRAME_WIDTH);
-//	int const frame_height = (int)cap.get(CAP_PROP_FRAME_HEIGHT);
-//	Mat frame;
-//	Mat background = ExtractBackground(cap);
-//	//Mat background = imread("out_back.jpg");
-//	PrepareImages(background);
-//	Hand current_hand;
-//	Hand previous_hand;
-//	Mat original_frame(frame_height, frame_width, CV_8UC3);
-//	Mat front(frame_height, frame_width, CV_8UC3);
-//
-//	//imshow("Video", background);
-//	//imwrite("out_back.jpg", background);
-//	//waitKey(0);
-//
-//	////////bool first_frame = true;
-//
-//
-//	VideoWriter output_vid("output.avi", VideoWriter::fourcc('M', 'J', 'P', 'G'), 30, Size(frame_width, frame_height));
-//	int frame_num = 1;	//1106 frames per 40sec video
-//	while (true) {
-//		if (frame_num % skip_frames == 0) {	//decreases the number of frames being read in
-//			cap >> frame;				// Reads in image frame
-//			if (!frame.data) break;	// if there's no more frames then break
-//
-//			//cout << "sssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss" << endl;
-//			//imshow("Video", frame);
-//			//imwrite("out_back.jpg", background);
-//			//waitKey(0);
-//			original_frame = frame.clone();
-//			PrepareImages(frame);
-//			front = BackgroundRemover(frame, background);
-//
-//
-//
-//			vector<vector<Point>> contours = FindImageContours(front);
-//			sort(contours.begin(), contours.end(), CompareContourAreas);
-//			Rect box;
-//
-//
-//
-//			current_hand = SearchForHand(front, contours, box);
-//
-//
-//
-//			//Hand is either detected or not	//Print info to screen
-//			PrintHandType(original_frame, current_hand.type);
-//			PrintHandLocation(original_frame, current_hand.location);
-//			Mat shape = MovementDirectionShape(HandMovementDirection(current_hand, previous_hand));
-//			shape.copyTo(original_frame(Rect(100, 200, shape.cols, shape.rows)));
-//			if (current_hand.type != -1) {
-//				rectangle(original_frame, box, Scalar(0, 255, 0), 2);
-//			}
-//
-//
-//			previous_hand = current_hand;
-//
-//
-//			//imshow("Video", frame);
-//			//waitKey(30);
-//			output_vid.write(original_frame);
-//			frame_num++;
-//		}
-//		else {
-//			frame_num++;
-//		}
-//	}
-//
-//	output_vid.release();
-//	cap.release();
-//	//destroyAllWindows();
-//	return 0;
-//}
+// Main Method
+// Precondition:
+// Postcondition:
+int main(int argc, char* argv[]) {
+	VideoCapture cap(video_name_path);
+	if (!cap.isOpened()) return -1;
 
-
-
-
-
-/////////////////////////////////////////////////////PICTURE ONLY
-
-int main() {
-	Mat frame = imread("front.jpg");
-	Mat background = imread("background.jpg");
-	PrepareImages(background);
+	int const frame_width = (int)cap.get(CAP_PROP_FRAME_WIDTH);
+	int const frame_height = (int)cap.get(CAP_PROP_FRAME_HEIGHT);
+	Mat frame;
+	Mat background = ExtractBackground(cap);
+	//Mat background = imread("background.jpg");
+	PrepareImage(background, true);
 	Hand current_hand;
-	Hand previous_hand;////
+	Hand previous_hand;
+	Mat original_frame(frame_height, frame_width, CV_8UC3);
+	Mat front(frame_height, frame_width, CV_8UC3);
 
 
-	Mat original_frame(background.rows, background.cols, CV_8UC3);
-	Mat front(background.rows, background.cols, CV_8UC3);
+	imwrite("out_back.jpg", background);////////@@@@
+	VideoWriter output_vid("output.avi", VideoWriter::fourcc('M', 'J', 'P', 'G'), 30, Size(frame_width, frame_height));
+
+	int frame_num = 1;
+	int previous_shape_type = -1;
+	Rect prev_box;
+
+	while (true) {
+		cap >> frame;				// Reads in image frame
+		if (!frame.data) break;	// if there's no more frames then break
+		if (frame_num % skip_frames == 0) {	//decreases the number of frames being read in
+			original_frame = frame.clone();
 
 
-	original_frame = frame.clone();
-	PrepareImages(frame);
-	front = BackgroundRemover(frame, background);
-	imshow("asdax", front);
-	waitKey(0);
-	vector<vector<Point>> contours = FindImageContours(front);
-	sort(contours.begin(), contours.end(), CompareContourAreas);
-	Rect box;
+			PrepareImage(frame, true);
+			front = BackgroundRemover(frame, background);
+			vector<vector<Point>> contours = FindImageContours(front);
+			sort(contours.begin(), contours.end(), CompareContourAreas);
+			Rect box;
+			current_hand = SearchForHand(front, contours, box);
 
-	current_hand = SearchForHand(original_frame, front, contours, box);
 
-	//Hand is either detected or not	//Print info to screen
-	PrintHandType(original_frame, current_hand.type);
-	PrintHandLocation(original_frame, current_hand.location);
-	Mat shape = MovementDirectionShape(HandMovementDirection(current_hand, previous_hand));
-	shape.copyTo(original_frame(Rect(0, 0, shape.cols, shape.rows)));
-	if (current_hand.type != -1) {
-		rectangle(original_frame, box, Scalar(0, 255, 0), 2);
+
+			//Print info to screen
+			PrintHandType(original_frame, current_hand.type);
+			PrintHandLocation(original_frame, current_hand.location);
+			int shape_type = HandMovementDirection(current_hand, previous_hand);
+			Mat shape = MovementDirectionShape(shape_type);
+			shape.copyTo(original_frame(Rect(0, 0, shape.cols, shape.rows)));
+			if (current_hand.type != -1) {
+				rectangle(original_frame, box, box_color, 2);
+				prev_box = box;
+			}
+
+
+			previous_shape_type = shape_type;
+			previous_hand = current_hand;
+
+
+			//imshow("Video", original_frame);
+			//waitKey(0);
+			output_vid.write(original_frame);
+			frame_num++;
+		}
+		else {
+			PrintHandType(frame, previous_hand.type);
+			PrintHandLocation(frame, previous_hand.location);
+			Mat shape = MovementDirectionShape(previous_shape_type);
+			shape.copyTo(frame(Rect(0, 0, shape.cols, shape.rows)));
+			if (previous_hand.type != -1) {
+				rectangle(frame, prev_box, box_color, 2);
+			}
+			output_vid.write(frame);
+			frame_num++;
+			//imshow("56", frame);
+			//waitKey(0);
+		}
 	}
-
-	imshow("ddsadcewfwefw", original_frame);
-	waitKey(0);
-	imwrite("done.jpg", original_frame);
+	output_vid.release();
+	cap.release();
+	return 0;
 }
 
 
@@ -647,99 +790,44 @@ int main() {
 
 
 
-//if (first_frame) {
-//	cvtColor(frame, frame, COLOR_BGR2GRAY, 0);
-//	GaussianBlur(frame, frame, Size(7, 7), 2.0, 2.0);
-//	Canny(frame, frame, 20, 60);
-//	background = frame;
-//	first_frame = false;
-//}
-//else {
-//	//
 
+
+/////////////////////////////////////////////////////PICTURE ONLY
 
 //int main() {
-//	Mat back = imread("background.jpg");
-//	Mat front = imread("front.jpg");
+//	Mat frame = imread("front.jpg");
+//	Mat background = imread("background.jpg");
+//	PrepareImage(background, true);
+//	Hand current_hand;
+//	Hand previous_hand;
 //
-//	PrepareImages(front);
-//	PrepareImages(back);
 //
-//	//imshow("ascasc", front);
-//	//waitKey(0);
+//	Mat original_frame(background.rows, background.cols, CV_8UC3);
+//	Mat front(background.rows, background.cols, CV_8UC3);
 //
-//  //Mat hsv_front;
-//	//cvtColor(front, hsv_front, COLOR_BGR2HSV);
-//	//vector<Mat> channels_front;
-//	//split(front, channels_front);
-//	//Mat V_front = channels_front[2];
 //
-//	//Mat hsv_back;
-//	//cvtColor(back, hsv_back, COLOR_BGR2HSV);
-//	//vector<Mat> channels_back;
-//	//split(back, channels_back);
-//	//Mat V_back = channels_back[2];
+//	original_frame = frame.clone();
+//	PrepareImage(frame, false);
+//	front = BackgroundRemover(frame, background);
 //
-//  //cvtColor(front, front, COLOR_BGR2GRAY);
-//	//Canny(V_front, V_front, 20, 60);
-//	//Canny(V_back, V_back, 20, 60);
+//	imwrite("qweedsdf.jpg", front);
 //
-//	//imshow("ascasc", V_front);
-//	//waitKey(0);
-//
-//	//imshow("ascasc", V_back);
-//	//waitKey(0);
-//
-//	Mat object = BackgroundRemover(front, back);
-//	imshow("2222", object);
-//	waitKey(0);
-//
+//	vector<vector<Point>> contours = FindImageContours(front);
+//	sort(contours.begin(), contours.end(), CompareContourAreas);
 //	Rect box;
-//	Mat only_object = ObtainFrontObject(object, box);
-//	imshow("objjjj", object);
+//
+//	current_hand = SearchForHand(front, contours, box);
+//
+//	//Hand is either detected or not	//Print info to screen
+//	PrintHandType(original_frame, current_hand.type);
+//	PrintHandLocation(original_frame, current_hand.location);
+//	Mat shape = MovementDirectionShape(HandMovementDirection(current_hand, previous_hand));
+//	shape.copyTo(original_frame(Rect(0, 0, shape.cols, shape.rows)));
+//	if (current_hand.type != -1) {
+//		rectangle(original_frame, box, Scalar(0, 255, 0), 2);
+//	}
+//
+//	imshow("ddsadcewfwefw", original_frame);
 //	waitKey(0);
-//	//only_object = ObjectCropper(only_object);
-//	//resize(only_object, only_object, Size(300, 490), INTER_LINEAR);
-//	imwrite("t.jpg", only_object);
-//	imshow("None approximation", only_object);
-//	waitKey(0);
-//
-//	//only_object = imread("2.jpg");
-//
-//	int type = TemplateMatchingWithObject(only_object);
-//	cout << "TYPEE!! " << type << endl;
-//	Hand hand;
-//	if (type != -1) {
-//		hand.type = type;
-//		hand.location.x = box.x;
-//		hand.location.y = box.y;
-//
-//	}
-//}
-
-// Main just to test ExtractBackground()
-//int main() {
-//	VideoCapture cap;
-//	cap.open("india.mp4");
-//	Mat background = ExtractBackground(cap);
-//	imwrite("background.jpg", background);
-//}
-
-
-//Mat ObjectCropper(Mat& object) {
-//	float height = object.size().height;
-//	float width = object.size().width;
-//	if (height >= width) {
-//		if (height / width < 1.8) {}
-//		else {
-//			object = object(Range(0, height - (height / 3)), Range(0, width));
-//		}
-//	}
-//	else {
-//		if (width / height < 1.8) {}
-//		else {
-//			object = object(Range(0, width), Range(0, height));
-//		}
-//	}
-//	return object;
+//	imwrite("done.jpg", original_frame);
 //}
