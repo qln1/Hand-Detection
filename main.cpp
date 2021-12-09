@@ -124,9 +124,12 @@ void ModifyContrast(Mat& pic) {
 
 
 
-
-
-
+// HowSimilarImagesAre
+// Preconditions: a valid hand template and front image containing a hand are passed in. This program should also
+// contain and use OpenCV files in order to use SIFT. 
+// Postconditions: An image showing the keypoint matches between the hand template and front image is shown.
+// The number of keypoints in the vector good_matches is returned, indicating how strong the match was. 
+// Note: waits for a key press between each image display
 int HowSimilarImagesAre(const Mat& hand, const Mat& front) {
 	Ptr<SIFT> detector = SIFT::create(min_hessian);
 	vector<KeyPoint> keypoints_template, keypoints_search;
@@ -157,6 +160,11 @@ int HowSimilarImagesAre(const Mat& hand, const Mat& front) {
 	return (int)good_matches.size();
 }
 
+// TemplateMatchingWithObject
+// Preconditions: Numbered template files exist in the project directory and the function HowSimilarImagesAre
+// is fully functional and implemented.
+// Postconditions: Either returns an integer that matches a template with the hand position in the front image
+// passed in or returns -1, signifying that a hand was failed to detect. 
 int TemplateMatchingWithObject(const Mat& front) {
 	//Possible detect left vs right here first???
 
@@ -647,7 +655,9 @@ int FindLocalMaximaMinima(const vector<Point>& points, const int middle) {
 
 
 
-
+// SearchForHand
+// Preconditions: The functions FindNthBiggestContour and FindLocalMaximaMinima exist and are fully implemented. 
+// Postconditions: A hand class is returned with the following values: the type and the x and y location coordinates.  
 Hand SearchForHand(const Mat& front, const vector<vector<Point>>& contours, Rect& box) {
 	Hand hand;
 	Mat only_object;
@@ -696,9 +706,9 @@ Hand SearchForHand(const Mat& front, const vector<vector<Point>>& contours, Rect
 
 
 
-// Main Method
-// Precondition:
-// Postcondition:
+//// Main Method - Video
+//// Precondition: hand.mp4 exists in the code directory and is a valid mp4 video file. 
+//// Postcondition: an image for each hand frame gets shown indicating hand position, location, and change from previous frame
 int main(int argc, char* argv[]) {
 	VideoCapture cap(video_name_path);
 	if (!cap.isOpened()) return -1;
@@ -793,7 +803,9 @@ int main(int argc, char* argv[]) {
 
 
 /////////////////////////////////////////////////////PICTURE ONLY
-
+//// Main Method - Picture
+//// Precondition: front.jpg and background.jpg exist in the code directory and are valid JPEG files. 
+//// Postcondition: an image gets shown indicating hand position and location.
 //int main() {
 //	Mat frame = imread("front.jpg");
 //	Mat background = imread("background.jpg");
