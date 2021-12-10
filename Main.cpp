@@ -12,10 +12,7 @@
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/videoio.hpp>
 #include <opencv2/video.hpp>
-#include "Helper.cpp"
-#include "ImageOperations.cpp"
-#include "ObjectRecognition.cpp"
-#include "Contours.cpp"
+#include "Hand.h"
 using namespace cv;
 using namespace std;
 
@@ -25,31 +22,27 @@ using namespace std;
 #define MOVE_LEFT 3;
 #define MOVE_RIGHT 4;
 
-Scalar const text_color = { 0, 255, 0 };
 string const video_name_path = "hand.mp4";
-double const contrast_num = 1.25;
-int const brightness_level = 12;/////////////////////
-int const local_skip_points = 5;
-int const gaus_blur_size = 11;
-int const gaus_blur_amount = 3;
-int const background_remover_thresh = 18;
-int const median_blur = 7;
-string const template_path = "Templates\\hand";
 int const skip_frames = 3;/////////////////////////////////////////////
-int const min_contour_area = 8000;
-int const similarity_threshold = 10;////////////////////////////////////
-int const movement_threshold = 15;
-int const min_hessian = 400;
-float const ratio_thresh = 0.7;
 Scalar const box_color = Scalar(0, 0, 255);
-int const number_random_frames = 80;/////////////////////////////////
-int const sat_val = 15;
 
 int test = 0;
+
+Mat ExtractBackground(VideoCapture& video);
+void PrepareImage(Mat& image, bool is_background);
+Mat BackgroundRemover(const Mat& front, const Mat& back);
+vector<vector<Point>> FindImageContours(const Mat& object);
+bool CompareContourAreas(const vector<Point> contour1, const vector<Point> contour2);
+Hand SearchForHand(const Mat& front, const vector<vector<Point>>& contours, Rect& box);
+void PrintHandType(Mat& frame, const int h_type);
+void PrintHandLocation(Mat& frame, const Point hand_pos);
+int HandMovementDirection(const Hand& current, const Hand& previous);
+Mat MovementDirectionShape(const int direction);
 
 //// Main Method - Video
 //// Precondition: hand.mp4 exists in the code directory and is a valid mp4 video file.
 //// Postcondition: an image for each hand frame gets shown indicating hand position, location, and change from previous frame
+/*
 int main(int argc, char* argv[]) {
 	VideoCapture cap(video_name_path);
 	if (!cap.isOpened()) return -1;
@@ -128,44 +121,44 @@ int main(int argc, char* argv[]) {
 	cap.release();
 	return 0;
 }
+*/
 
 //// Main Method - Picture
 //// Precondition: front.jpg and background.jpg exist in the code directory and are valid JPEG files.
 //// Postcondition: an image gets shown indicating hand position and location.
-//int main() {
-//	Mat frame = imread("front.jpg");
-//	Mat background = imread("background.jpg");
-//	PrepareImage(background, true);
-//	Hand current_hand;
-//	Hand previous_hand;
-//
-//
-//	Mat original_frame(background.rows, background.cols, CV_8UC3);
-//	Mat front(background.rows, background.cols, CV_8UC3);
-//
-//
-//	original_frame = frame.clone();
-//	PrepareImage(frame, false);
-//	front = BackgroundRemover(frame, background);
-//
-//	imwrite("qweedsdf.jpg", front);
-//
-//	vector<vector<Point>> contours = FindImageContours(front);
-//	sort(contours.begin(), contours.end(), CompareContourAreas);
-//	Rect box;
-//
-//	current_hand = SearchForHand(front, contours, box);
-//
-//	//Hand is either detected or not	//Print info to screen
-//	PrintHandType(original_frame, current_hand.type);
-//	PrintHandLocation(original_frame, current_hand.location);
-//	Mat shape = MovementDirectionShape(HandMovementDirection(current_hand, previous_hand));
-//	shape.copyTo(original_frame(Rect(0, 0, shape.cols, shape.rows)));
-//	if (current_hand.type != -1) {
-//		rectangle(original_frame, box, Scalar(0, 255, 0), 2);
-//	}
-//
-//	imshow("ddsadcewfwefw", original_frame);
-//	waitKey(0);
-//	imwrite("done.jpg", original_frame);
-//}
+int main() {
+	Mat frame = imread("front.jpg");
+	Mat background = imread("background.jpg");
+	PrepareImage(background, true);
+	Hand current_hand;
+	Hand previous_hand;
+
+	Mat original_frame(background.rows, background.cols, CV_8UC3);
+	Mat front(background.rows, background.cols, CV_8UC3);
+
+
+	original_frame = frame.clone();
+	PrepareImage(frame, false);
+	front = BackgroundRemover(frame, background);
+
+	imwrite("qweedsdf.jpg", front);
+
+	vector<vector<Point>> contours = FindImageContours(front);
+	sort(contours.begin(), contours.end(), CompareContourAreas);
+	Rect box;
+
+	current_hand = SearchForHand(front, contours, box);
+
+	//Hand is either detected or not	//Print info to screen
+	PrintHandType(original_frame, current_hand.type);
+	PrintHandLocation(original_frame, current_hand.location);
+	Mat shape = MovementDirectionShape(HandMovementDirection(current_hand, previous_hand));
+	shape.copyTo(original_frame(Rect(0, 0, shape.cols, shape.rows)));
+	if (current_hand.type != -1) {
+		rectangle(original_frame, box, Scalar(0, 255, 0), 2);
+	}
+
+	imshow("ddsadcewfwefw", original_frame);
+	waitKey(0);
+	imwrite("done.jpg", original_frame);
+}
