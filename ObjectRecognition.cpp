@@ -12,8 +12,7 @@
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/videoio.hpp>
 #include <opencv2/video.hpp>
-#include "Helper.cpp"
-#include "ImageOperations.cpp"
+#include "Hand.h"
 using namespace cv;
 using namespace std;
 
@@ -23,27 +22,14 @@ using namespace std;
 #define MOVE_LEFT 3;
 #define MOVE_RIGHT 4;
 
-Scalar const text_color = { 0, 255, 0 };
-string const video_name_path = "hand.mp4";
-double const contrast_num = 1.25;
-int const brightness_level = 12;/////////////////////
-int const local_skip_points = 5;
-int const gaus_blur_size = 11;
-int const gaus_blur_amount = 3;
-int const background_remover_thresh = 18;
-int const median_blur = 7;
-string const template_path = "Templates\\hand";
-int const skip_frames = 3;/////////////////////////////////////////////
-int const min_contour_area = 8000;
-int const similarity_threshold = 10;////////////////////////////////////
-int const movement_threshold = 15;
 int const min_hessian = 400;
 float const ratio_thresh = 0.7;
-Scalar const box_color = Scalar(0, 0, 255);
-int const number_random_frames = 80;/////////////////////////////////
-int const sat_val = 15;
+string const template_path = "Templates\\hand";
+int const similarity_threshold = 10;
 
-int test = 0;
+int FindNthBiggestContour(const vector<vector<Point>>& contours, Rect& box, const int n);
+int FindLocalMaximaMinima(const vector<Point>& points, const int middle);
+vector<Point> FindTopEdge(const Mat& object);
 
 // HowSimilarImagesAre
 // Preconditions: a valid hand template and front image containing a hand are passed in. This program should also
