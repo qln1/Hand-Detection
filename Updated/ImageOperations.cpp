@@ -1,3 +1,6 @@
+// Contains functions that preform operations on images for Hand Detection. Function such as modifying its
+//  color qualities and pixel values, operations on the whole image, such as smoothing, and background
+//  extraction.
 // Author: Quintin Nguyen, Akhil Lal, Matthew Cho
 
 #include <opencv2/core.hpp>
