@@ -1,3 +1,6 @@
+// Contains the Hand struct for Hand Detection. Struct contains location of hand and position.
+// Author: Quintin Nguyen, Akhil Lal, Matthew Cho
+
 #pragma once
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
