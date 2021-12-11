@@ -1,3 +1,5 @@
+// Contains main function for Hand-Detection. Goes through each frame in the input video and detects 
+//  the hand, and displays its coordinates, position, and movement in a returned video
 // Author: Quintin Nguyen, Akhil Lal, Matthew Cho
 
 #include <opencv2/core.hpp>
