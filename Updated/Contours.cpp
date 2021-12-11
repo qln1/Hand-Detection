@@ -1,3 +1,5 @@
+// Contains contour operations for Hand Detection. Such as finding the image contours in given image, 
+//  finding the nth biggest contours in a given list of contours, and determining which contour is bigger.
 // Author: Quintin Nguyen, Akhil Lal, Matthew Cho
 
 #include <opencv2/core.hpp>
