@@ -1,3 +1,5 @@
+// Contains functions to determine if image contains a hand for Hand Detection. Such as finding the hand and
+//  determining its position by seeing how many fingers are held up.
 // Author: Quintin Nguyen, Akhil Lal, Matthew Cho
 
 #include <opencv2/core.hpp>
