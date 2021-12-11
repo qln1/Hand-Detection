@@ -1,3 +1,5 @@
+// Contains function relating to the position of the hand and movement direction for Hand Detection.
+//  Also works on print this information to the screen.
 // Author: Quintin Nguyen, Akhil Lal, Matthew Cho
 
 #include <opencv2/core.hpp>
